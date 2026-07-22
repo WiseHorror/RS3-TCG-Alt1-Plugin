@@ -61,6 +61,7 @@ let runeMetricsXpColumnX = RUNEMETRICS_XP_COLUMN_X;
 let collectionPage = 0;
 const unrevealedPackCards = new Set();
 let packModalReturnFocus = null;
+let creditsHelpReturnFocus = null;
 let resetConfirmationTimer = null;
 
 const qs = (selector) => document.querySelector(selector);
@@ -492,10 +493,9 @@ function addReward(kind, statusText = "", coinOverride = null, chanceOverride = 
   if (packDropped) {
     state.packs += 1;
     qs("#rewardStatus").textContent = statusText || `${reward.label}: +${coins} credits and a pack dropped.`;
-    log(`${reward.label} awarded ${coins.toLocaleString()} credits and one pack.`);
+    log(`${reward.label} awarded one pack.`);
   } else {
     qs("#rewardStatus").textContent = statusText || `${reward.label}: +${coins} credits.`;
-    log(`${reward.label} awarded ${coins.toLocaleString()} credits.`);
   }
   save();
   render();
@@ -819,6 +819,20 @@ function identifyAlt1App() {
   alt1.identifyAppUrl(new URL("./appconfig.json", location.href).href);
 }
 
+function openCreditsHelp() {
+  creditsHelpReturnFocus = document.activeElement;
+  qs("#creditsHelpModal").hidden = false;
+  document.body.classList.add("modal-open");
+  qs("#closeCreditsHelp").focus();
+}
+
+function closeCreditsHelp() {
+  qs("#creditsHelpModal").hidden = true;
+  document.body.classList.remove("modal-open");
+  creditsHelpReturnFocus?.focus();
+  creditsHelpReturnFocus = null;
+}
+
 function bind() {
   qs("#openPackButton").addEventListener("click", openPack);
   qs("#closePackModal").addEventListener("click", closePackModal);
@@ -827,8 +841,18 @@ function bind() {
     if (event.target === event.currentTarget && unrevealedPackCards.size === 0) closePackModal();
   });
   qs("#installButton").addEventListener("click", installAlt1);
+  qs("#creditsHelpButton").addEventListener("click", openCreditsHelp);
+  qs("#closeCreditsHelp").addEventListener("click", closeCreditsHelp);
+  qs("#creditsHelpModal").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeCreditsHelp();
+  });
   qs("#alt1StatusButton").addEventListener("click", checkAlt1Status);
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !qs("#creditsHelpModal").hidden) {
+      event.preventDefault();
+      closeCreditsHelp();
+      return;
+    }
     if (event.key === "Escape" && !qs("#packModal").hidden) {
       event.preventDefault();
       closePackModal();

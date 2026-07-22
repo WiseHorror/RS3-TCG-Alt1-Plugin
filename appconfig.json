@@ -1,7 +1,7 @@
 {
   "appName": "RS TCG",
   "description": "A RuneScape 3 card collection app for Alt1.",
-  "appUrl": "./index.html?v=20260722-2160",
+  "appUrl": "./index.html?v=20260723-0010",
   "configUrl": "./appconfig.json",
   "iconUrl": "./assets/icon.png",
   "defaultWidth": 420,

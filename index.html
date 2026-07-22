@@ -19,9 +19,12 @@
       </header>
 
       <section class="stats-grid" aria-label="Collection statistics">
-        <article>
+        <article class="credits-stat">
           <span id="coins">0</span>
-          <small>Credits</small>
+          <div class="stat-label-row">
+            <small>Credits</small>
+            <button id="creditsHelpButton" class="stat-help-button" type="button" title="How to earn credits" aria-label="How to earn credits">?</button>
+          </div>
         </article>
         <article id="packsStat">
           <span id="packs">0</span>
@@ -43,9 +46,7 @@
       <section id="packsView" class="view active">
         <div class="pack-stage">
           <div class="pack-art" aria-hidden="true">
-            <span class="rune rune-air"></span>
-            <span class="rune rune-fire"></span>
-            <span class="rune rune-nature"></span>
+            <img src="./assets/rs-pack-art.png" alt="">
             <strong id="packArtCount" class="pack-art-count">x0</strong>
           </div>
           <div>
@@ -152,13 +153,28 @@
           </div>
         </header>
         <div id="packOpeningSource" class="pack-opening-source" aria-hidden="true">
-          <img src="./assets/icon.png" alt="">
+          <img src="./assets/rs-pack-art.png" alt="">
           <strong>Origin Pack</strong>
         </div>
         <div id="reveal" class="reveal-grid" aria-live="polite"></div>
       </div>
     </section>
 
-    <script src="./dist/app.bundle.js?v=20260722-2160"></script>
+    <section id="creditsHelpModal" class="pack-modal" role="dialog" aria-modal="true" aria-labelledby="creditsHelpTitle" hidden>
+      <div class="pack-modal-panel credits-help-panel">
+        <header class="pack-modal-header">
+          <h2 id="creditsHelpTitle">How to earn credits</h2>
+          <button id="closeCreditsHelp" class="icon-button" type="button" title="Close" aria-label="Close">&times;</button>
+        </header>
+        <div class="credits-help-content">
+          <p>Gain XP while the RuneMetrics XP tracker is visible. Every 10 XP awards 1 credit, rounded up.</p>
+          <p>Each XP drop also has a random chance to award a free pack. Free packs are more likely from higher XP drops.</p>
+          <p>You can also sell cards from your collection. Extra copies can be sold together with the <strong>Sell duplicates</strong> button.</p>
+          <p class="muted">Credits are used to buy card packs.</p>
+        </div>
+      </div>
+    </section>
+
+    <script src="./dist/app.bundle.js?v=20260723-0010"></script>
   </body>
 </html>
