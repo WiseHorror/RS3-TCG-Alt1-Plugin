@@ -1,0 +1,25 @@
+{
+  "private": true,
+  "scripts": {
+    "curate": "node scripts/curate-card-catalogue.js",
+    "cards:clues": "node scripts/import-clue-rewards.js",
+    "cards:components": "node scripts/import-invention-components.js",
+    "cards:update": "node scripts/generate-card-catalogue.js",
+    "titles:update": "node scripts/update-player-titles.js",
+    "build": "webpack --mode production --env debug=true",
+    "build:release": "webpack --mode production --env debug=false",
+    "editor": "node scripts/card-editor-server.js",
+    "watch": "webpack --watch --mode development"
+  },
+  "dependencies": {
+    "alt1": "^0.0.1",
+    "alt1-source": "github:skillbert/alt1#master"
+  },
+  "devDependencies": {
+    "sharp": "^0.31.3",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.9.2",
+    "webpack": "^5.65.0",
+    "webpack-cli": "^4.8.0"
+  }
+}

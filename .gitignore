@@ -1,0 +1,13 @@
+node_modules/
+
+# Local tooling and editor state
+.agents/
+.vscode/
+.idea/
+*.log
+*.tmp
+*.bak
+
+# Operating system files
+.DS_Store
+Thumbs.db

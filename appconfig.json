@@ -1,0 +1,16 @@
+{
+  "appName": "RuneScape TCG",
+  "description": "A RuneScape 3 card collection app for Alt1.",
+  "appUrl": "./index.html",
+  "configUrl": "./appconfig.json",
+  "iconUrl": "./assets/icon.svg",
+  "defaultWidth": 420,
+  "defaultHeight": 720,
+  "minWidth": 360,
+  "minHeight": 560,
+  "maxWidth": 900,
+  "maxHeight": 1000,
+  "permissions": "pixel",
+  "requestHandlers": [],
+  "activators": []
+}

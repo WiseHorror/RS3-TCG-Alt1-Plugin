@@ -1,0 +1,6 @@
+{
+  "packPrice": 2500,
+  "maxCardPackValue": 10,
+  "sourceValueCap": 2147483647,
+  "valueCurveExponent": 6
+}

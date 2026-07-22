@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RuneScape TCG</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Alt1 collection</p>
+          <h1>RuneScape TCG</h1>
+        </div>
+        <button id="installButton" class="icon-button" title="Install in Alt1" aria-label="Install in Alt1" hidden>
+          <span>+</span>
+        </button>
+      </header>
+
+      <section class="stats-grid" aria-label="Collection statistics">
+        <article>
+          <span id="coins">0</span>
+          <small>Credits</small>
+        </article>
+        <article>
+          <span id="packs">0</span>
+          <small>Packs</small>
+        </article>
+        <article>
+          <span id="ownedCount">0/0</span>
+          <small>Cards</small>
+        </article>
+      </section>
+
+      <nav class="tabs" aria-label="Views">
+        <button class="tab active" data-view="packsView">Packs</button>
+        <button class="tab" data-view="collectionView">Collection</button>
+        <button class="tab" data-view="logView">Log</button>
+        <button class="tab" data-view="settingsView">Settings</button>
+      </nav>
+
+      <section id="packsView" class="view active">
+        <div class="pack-stage">
+          <div class="pack-art" aria-hidden="true">
+            <span class="rune rune-air"></span>
+            <span class="rune rune-fire"></span>
+            <span class="rune rune-nature"></span>
+          </div>
+          <div>
+            <h2>Origin Pack</h2>
+            <p id="packDescription">Contains RuneScape-themed cards. Duplicates are kept and can be sold from the collection.</p>
+          </div>
+          <div class="pack-actions">
+            <div class="button-row" aria-label="Open packs">
+              <button id="openPackButton" class="primary">Open 1</button>
+              <button id="openTenPacksButton" class="primary">Open 10</button>
+            </div>
+            <div class="button-row" aria-label="Buy packs">
+              <button id="buyPackButton">Buy 1</button>
+              <button id="buyTenPacksButton">Buy 10</button>
+              <input id="packPurchaseQuantity" type="number" min="1" step="1" value="1" aria-label="Custom pack quantity">
+              <button id="buyCustomPacksButton">Buy X</button>
+              <button id="buyMaxPacksButton">Buy Max</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="collectionView" class="view">
+        <div class="collection-tools">
+          <input id="searchInput" type="search" placeholder="Search cards">
+          <div class="collection-filters">
+            <select id="ownershipFilter" aria-label="Filter by ownership">
+            <option value="all">All cards</option>
+            <option value="owned">Owned</option>
+            <option value="unowned">Unowned</option>
+            <option value="duplicates">Duplicates</option>
+            <option value="foils">Foils</option>
+            </select>
+            <select id="typeFilter" aria-label="Filter by card type">
+            <option value="all">All types</option>
+            <option value="item">Items</option>
+            <option value="npc">Monsters</option>
+            <option value="node">Skill nodes</option>
+            </select>
+            <select id="rarityFilter" aria-label="Filter by rarity">
+            <option value="all">All rarities</option>
+            <option value="Common">Common</option>
+            <option value="Uncommon">Uncommon</option>
+            <option value="Rare">Rare</option>
+            <option value="Epic">Epic</option>
+            <option value="Legendary">Legendary</option>
+            <option value="Mythic">Mythic</option>
+            <option value="Godly">Godly</option>
+            </select>
+            <select id="collectionSort" aria-label="Sort cards">
+            <option value="name-asc">Name: A-Z</option>
+            <option value="name-desc">Name: Z-A</option>
+            <option value="value-desc">Value: High-Low</option>
+            <option value="value-asc">Value: Low-High</option>
+            <option value="rarity-desc">Rarity: High-Low</option>
+            <option value="rarity-asc">Rarity: Low-High</option>
+            <option value="owned-desc">Owned: Most-Least</option>
+            <option value="owned-asc">Owned: Least-Most</option>
+            <option value="category-asc">Category: A-Z</option>
+            </select>
+          </div>
+          <div class="collection-actions">
+            <button id="sellDuplicatesButton" type="button">Sell duplicates</button>
+          </div>
+        </div>
+        <div id="collectionGrid" class="collection-grid"></div>
+        <div class="collection-pagination" aria-label="Collection pages">
+          <button id="previousCollectionPage" aria-label="Previous collection page">Previous</button>
+          <span id="collectionPageStatus" class="muted"></span>
+          <button id="nextCollectionPage" aria-label="Next collection page">Next</button>
+        </div>
+      </section>
+
+      <section id="logView" class="view">
+        <ol id="eventLog" class="event-log"></ol>
+      </section>
+
+      <section id="settingsView" class="view">
+        <div class="settings-list">
+          <label class="toggle-setting" for="showDetectionInfoToggle">
+            <span>Show Alt1 detection info</span>
+            <input id="showDetectionInfoToggle" type="checkbox">
+          </label>
+          <div id="activityPanel" class="activity-panel" hidden>
+            <h2>Alt1 Detection</h2>
+            <div class="monitor-row">
+              <button id="alt1StatusButton">Check Alt1</button>
+              <span id="xpDetectionStatus" class="status-pill">Idle</span>
+            </div>
+            <div class="button-row debug-controls" data-debug-feature hidden>
+              <button data-reward="skill">Skill Tick</button>
+              <button data-reward="boss">Boss Kill</button>
+              <button data-reward="clue">Clue Casket</button>
+            </div>
+            <p id="rewardStatus" class="muted">XP detection watches visible RuneMetrics counters through Alt1.</p>
+          </div>
+          <div class="button-row">
+            <button id="resetButton" class="danger">Reset</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section id="packModal" class="pack-modal" role="dialog" aria-modal="true" aria-labelledby="packModalTitle" hidden>
+      <div class="pack-modal-panel">
+        <header class="pack-modal-header">
+          <div>
+            <p class="eyebrow">Origin Pack</p>
+            <h2 id="packModalTitle">Your cards</h2>
+          </div>
+          <div class="pack-modal-actions">
+            <button id="revealAllCardsButton" type="button">Reveal All</button>
+            <button id="closePackModal" class="icon-button" type="button" title="Close pack" aria-label="Close pack">&times;</button>
+          </div>
+        </header>
+        <div id="reveal" class="reveal-grid" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <script src="./dist/app.bundle.js"></script>
+  </body>
+</html>
