@@ -1,6 +1,20 @@
+// Destructive final curation pass. Review the generated-cards.json diff after
+// running this script and before committing it.
 const fs = require("fs");
 const path = require("path");
-const { canonicalBaseTitle, isAugmentedItemVariant, isEligibleItem, isOverviewCard, isRedundantSkillcapeVariant } = require("./card-eligibility");
+const {
+  canonicalBaseTitle,
+  isAugmentedItemVariant,
+  isConstructionBanner,
+  isConstructionFurniture,
+  isExpertSkillcapeShard,
+  isGrandExchangeSet,
+  isEligibleItem,
+  isLootPinataItem,
+  isOverviewCard,
+  isRedundantSkillcapeVariant,
+  isTitleScroll
+} = require("./card-eligibility");
 
 const cataloguePath = path.resolve(__dirname, "../src/generated-cards.json");
 const permanentQuestRewards = new Set([
@@ -15,7 +29,14 @@ const itemTitles = new Set(cards.filter((card) => card.id.startsWith("item-")).m
 const isNicheNpc = (title) => /\((?:unused|historical|removed|teaser|cutscene|tutorial|player-owned house(?:, historical)?|\d{4} (?:halloween|christmas|easter) event)\)$/i.test(title);
 
 function exclusionReason(card) {
+  // A reason string keeps removal reports auditable while remaining truthy.
   if (isOverviewCard(card)) return "overview page";
+  if (isConstructionBanner(card)) return "construction banner";
+  if (isConstructionFurniture(card)) return "construction furniture";
+  if (isGrandExchangeSet(card)) return "Grand Exchange set";
+  if (isExpertSkillcapeShard(card)) return "expert skillcape shard";
+  if (isLootPinataItem(card)) return "Loot Pinata item";
+  if (isTitleScroll(card)) return "title scroll";
   if (card.category.includes("NPC")) {
     const canonical = canonicalBaseTitle(card.name);
     if (canonical !== card.name.toLowerCase() && npcTitles.has(canonical)) return "duplicate NPC";

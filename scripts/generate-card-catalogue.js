@@ -1,7 +1,18 @@
+// Primary catalogue generator. Merges RuneScape Wiki categories and infoboxes
+// with Grand Exchange data to produce normalized card records.
 const fs = require("fs/promises");
 const path = require("path");
 const https = require("https");
-const { canonicalBaseTitle, isEligibleItem, isOverviewCard } = require("./card-eligibility");
+const {
+  canonicalBaseTitle,
+  isConstructionFurniture,
+  isEligibleItem,
+  isGrandExchangeSet,
+  isLootPinataItem,
+  isOverviewCard,
+  isSkillingOutfitItem,
+  isWickedEquipment
+} = require("./card-eligibility");
 const { cardCreditValue, cardSourceValue } = require("./card-value");
 
 const API_URL = "https://runescape.wiki/api.php";
@@ -14,7 +25,8 @@ const REQUEST_DELAY_MS = 150;
 const MAX_RETRIES = 6;
 const XP_SCORE_MULTIPLIER = 100;
 const SOURCES = [
-  { category: "Treasure Trails rewards", kind: "item", tags: ["Resource", "Clue Reward"], preserveVariants: true },
+  { category: "Treasure Trails rewards", kind: "item", tags: ["Resource", "Clue Reward"], preserveVariants: true, recursive: true },
+  { category: "Tasks set", kind: "item", tags: ["Resource", "Achievement Reward"], preserveVariants: true },
   { category: "Materials", kind: "component", tags: ["Resource", "Invention Component"] },
   { category: "Tradeable items", kind: "item", tags: ["Resource", "Tradeable Item"] },
   { category: "Untradeable items", kind: "item", tags: ["Resource", "Skill-created Item"], recipeCandidates: true },
@@ -111,6 +123,7 @@ async function categoryMembers(category) {
 }
 
 async function categoryPageMembersRecursive(category, visited = new Set()) {
+  // Wiki categories can contain cycles; visited also avoids duplicate requests.
   const key = category.toLowerCase();
   if (visited.has(key)) return [];
   visited.add(key);
@@ -121,10 +134,6 @@ async function categoryPageMembersRecursive(category, visited = new Set()) {
     pages.push(...await categoryPageMembersRecursive(subcategory.title.replace(/^Category:/i, ""), visited));
   }
   return pages;
-}
-
-function isSetItemTitle(title) {
-  return /\bset(?:\s+\d+)?(?:\s*\+\s*\d+|\s*\((?:lg|sk)\))?$/i.test(title);
 }
 
 function isDyedEquipmentTitle(title) {
@@ -261,6 +270,7 @@ function pageMetadata(page) {
     experience: maximumNumericField(content, ["xp", "experience"]),
     questItem: /^yes$/i.test(extractNumberedField(content, "quest")),
     tradeable: /^yes$/i.test(extractNumberedField(content, "tradeable")),
+    equipable: /^yes$/i.test(extractNumberedField(content, "equipable")),
     hasRecipe: recipeSections.length > 0,
     ingredients: [...new Set(ingredients)],
     skills: [...new Set(skills)]
@@ -408,6 +418,7 @@ function canonicalItemTitle(title, availableTitles) {
 }
 
 function collapseItemVariants(pages) {
+  // Dose, charge, and similar variants resolve to one canonical item card.
   const availableTitles = new Set(pages.map((page) => page.title.toLowerCase()));
   const canonicalPages = new Map();
   for (const page of pages) {
@@ -466,6 +477,7 @@ function bestTier(first, second) {
 }
 
 function assignRarities(cards) {
+  // Percentile rarity combines economic value, skill XP, and combat/level score.
   const groups = new Map();
   for (const card of cards) {
     const primary = card.category[0] || "Unknown";
@@ -545,7 +557,8 @@ async function main() {
     const allowedPages = pages.filter((page) => {
       const title = page.title.toLowerCase();
       return !grandExchangeSets.has(title)
-        && !isSetItemTitle(page.title)
+        && !isGrandExchangeSet({ name: page.title })
+        && !isLootPinataItem({ name: page.title })
         && !dyedEquipment.has(title)
         && !isDyedEquipmentTitle(page.title)
         && !coinShareShards.has(title)
@@ -674,6 +687,7 @@ async function main() {
       card.geValue = exchange?.price || null;
       card.highAlchValue = exchange?.highAlchValue || pageData.highAlchValue;
       card.experience = pageData.experience;
+      card.equipable = pageData.equipable;
       card.value = Math.max(card.geValue || 0, card.highAlchValue || 0, pageData.value || 0) || null;
     } else if (!card.category.includes("NPC")) card.level = pageData.level;
     if (card.recipeCandidate && pageData.hasRecipe) {
@@ -699,7 +713,8 @@ async function main() {
     if (!card.recipeCandidate) return true;
     const pageData = metadata.get(card.wikiTitle);
     return pageData && !pageData.tradeable
-      && (pageData.hasRecipe || ingredientTitles.has(card.name.toLowerCase()));
+      && (pageData.hasRecipe || ingredientTitles.has(card.name.toLowerCase())
+        || isSkillingOutfitItem(card) || isWickedEquipment(card));
   });
   const beforeCosmeticTokens = deduplicated.length;
   deduplicated = deduplicated.filter((card) => !isCosmeticUnlockToken(card));
@@ -711,6 +726,9 @@ async function main() {
   assignRarities(deduplicated);
   const beforeEligibility = deduplicated.length;
   deduplicated = deduplicated.filter((card) => !isOverviewCard(card)
+    && !isConstructionFurniture(card)
+    && !isGrandExchangeSet(card)
+    && !isLootPinataItem(card)
     && (!card.id.startsWith("item-") || isEligibleItem(card)));
   console.log(`${beforeEligibility - deduplicated.length} low-impact item cards excluded`);
   deduplicated.forEach((card) => {

@@ -1,3 +1,5 @@
+// Converts heterogeneous RuneScape metadata into the bounded credit economy
+// used by generated cards and the runtime selling UI.
 const economy = require("../src/economy-config.json");
 const rarityConfig = require("../src/rarity-config.json");
 
@@ -17,6 +19,8 @@ function cardSourceValue(card) {
 
 function cardCreditValue(card, sourceValue = cardSourceValue(card)) {
   const baseValue = rarityConfig[card.rarity]?.baseCreditValue || 0;
+  // Log normalization compresses RuneScape's enormous price range; the second
+  // exponent makes values near the ten-pack cap increasingly hard to reach.
   const normalized = Math.min(1, Math.log1p(Math.max(0, sourceValue)) / Math.log1p(economy.sourceValueCap));
   const curvedValue = Math.round(baseValue
     + (maximumCardValue - baseValue) * normalized ** economy.valueCurveExponent);

@@ -1,3 +1,4 @@
+// Imports Invention components and merges them by stable ID into the catalogue.
 const fs = require("fs/promises");
 const https = require("https");
 const path = require("path");

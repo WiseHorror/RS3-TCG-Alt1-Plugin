@@ -15,6 +15,8 @@
   --purple: #9a72c7;
 }
 
+/* Base controls and application shell -------------------------------------- */
+
 * {
   box-sizing: border-box;
 }
@@ -126,10 +128,18 @@ h2 {
   font-weight: 700;
 }
 
+#packsStat.free-pack-drop {
+  position: relative;
+  z-index: 1;
+  animation: free-pack-glow 3.2s ease-out;
+}
+
 small,
 .muted {
   color: var(--muted);
 }
+
+/* Navigation and collection controls -------------------------------------- */
 
 .tabs,
 .button-row,
@@ -191,6 +201,8 @@ small,
   display: block;
 }
 
+/* Pack purchase and opening ------------------------------------------------ */
+
 .pack-stage {
   display: grid;
   grid-template-columns: 108px 1fr;
@@ -202,27 +214,18 @@ small,
   grid-column: 1 / -1;
 }
 
-.pack-actions,
-.pack-actions .button-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .pack-actions {
-  justify-content: space-between;
-}
-
-#packPurchaseQuantity {
-  width: 76px;
-  min-height: 38px;
-  padding: 0 8px;
-  border-radius: 6px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .pack-art {
   position: relative;
-  min-height: 136px;
+  width: 100%;
+  max-width: 108px;
+  aspect-ratio: 108 / 136;
+  justify-self: center;
   border: 1px solid #7d6032;
   border-radius: 8px;
   background: linear-gradient(145deg, #6a2e24, #18264a 55%, #24472d);
@@ -252,6 +255,24 @@ small,
   bottom: 18px;
 }
 
+.pack-art-count {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  z-index: 1;
+  max-width: calc(100% - 14px);
+  padding: 3px 6px;
+  overflow: hidden;
+  border: 1px solid #f5dd97;
+  border-radius: 4px;
+  background: rgba(23, 19, 15, 0.9);
+  color: #f5dd97;
+  font-size: 12px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .activity-panel,
 .settings-list {
   margin-top: 12px;
@@ -261,6 +282,10 @@ small,
 .monitor-row {
   align-items: center;
   margin-bottom: 10px;
+}
+
+.activity-panel #rewardStatus {
+  margin: 10px 0 0;
 }
 
 .status-pill {
@@ -377,6 +402,42 @@ small,
   min-width: 0;
 }
 
+.pack-opening-source {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  width: 112px;
+  min-height: 150px;
+  place-items: center;
+  padding: 14px 10px;
+  border: 2px solid var(--gold);
+  border-radius: 8px;
+  background: #1b1712;
+  color: #f5dd97;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.82);
+}
+
+.pack-opening-source img {
+  width: 72px;
+  height: 72px;
+  image-rendering: auto;
+}
+
+.pack-opening-source.active {
+  animation: pack-source 900ms ease-out both;
+}
+
+.pack-card.dealing {
+  z-index: 3;
+  pointer-events: none;
+  animation: deal-card 520ms cubic-bezier(0.2, 0.72, 0.22, 1) var(--deal-delay, 0ms) both;
+}
+
 .collection-pagination {
   display: flex;
   align-items: center;
@@ -389,6 +450,8 @@ small,
   min-width: 180px;
   text-align: center;
 }
+
+/* Card faces and collection actions --------------------------------------- */
 
 .card {
   --card-art-height: clamp(78px, 12vw, 96px);
@@ -419,7 +482,7 @@ small,
 
 .card-face {
   display: grid;
-  grid-template-rows: auto var(--card-art-height) minmax(34px, auto) auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto var(--card-art-height) minmax(34px, auto) auto minmax(0, 1fr) auto;
   align-content: start;
   min-height: 266px;
   overflow: hidden;
@@ -688,6 +751,8 @@ textarea {
   border-radius: 6px;
 }
 
+/* Settings and activity log ------------------------------------------------ */
+
 .settings-list {
   display: grid;
   gap: 12px;
@@ -760,15 +825,69 @@ textarea {
   }
 }
 
+@keyframes free-pack-glow {
+  0% {
+    border-color: #fff8c7;
+    box-shadow: 0 0 0 rgba(255, 218, 92, 0);
+    transform: scale(1);
+  }
+  12%, 42%, 72% {
+    border-color: #fff09a;
+    box-shadow:
+      0 0 12px rgba(255, 241, 158, 1),
+      0 0 34px rgba(255, 199, 48, 0.95),
+      0 0 58px rgba(255, 151, 31, 0.55),
+      inset 0 0 18px rgba(255, 231, 124, 0.38);
+    transform: scale(1.04);
+  }
+  27%, 57%, 87% {
+    border-color: #e7b94f;
+    box-shadow:
+      0 0 8px rgba(255, 218, 92, 0.65),
+      0 0 20px rgba(255, 174, 32, 0.4),
+      inset 0 0 10px rgba(255, 224, 122, 0.18);
+    transform: scale(1.01);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: 0 0 0 rgba(255, 205, 65, 0);
+    transform: scale(1);
+  }
+}
+
+@keyframes pack-source {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); }
+  18%, 62% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+@keyframes deal-card {
+  0% {
+    opacity: 0;
+    transform: translate(var(--deal-x), var(--deal-y)) rotate(-7deg) scale(0.34);
+  }
+  62% { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0) scale(1); }
+}
+
 @keyframes foil-sheen {
   from { background-position: 180% 0; }
   to { background-position: -80% 0; }
 }
 
+/* Responsive and accessibility adjustments -------------------------------- */
+
 @media (prefers-reduced-motion: reduce) {
   .card.foil .card-front::after {
     animation: none;
     background-position: 50% 0;
+  }
+
+  .pack-opening-source.active,
+  .pack-card.dealing,
+  #packsStat.free-pack-drop {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
   }
 }
 
@@ -817,8 +936,8 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .pack-art {
-    min-height: 120px;
+  .pack-actions {
+    justify-content: center;
   }
 
   .button-row {

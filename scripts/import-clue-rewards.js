@@ -1,3 +1,6 @@
+// Supplements the catalogue with a Wiki item category that broad item curation
+// could otherwise omit. Defaults to clue rewards, but accepts a category and
+// card tag as command-line arguments.
 const fs = require("fs/promises");
 const https = require("https");
 const path = require("path");
@@ -5,7 +8,15 @@ const path = require("path");
 const API_URL = "https://runescape.wiki/api.php";
 const GE_DUMP_URL = "https://chisel.weirdgloop.org/gazproj/gazbot/rs_dump.json";
 const cataloguePath = path.resolve(__dirname, "../src/generated-cards.json");
-const { isAugmentedItemVariant, isRedundantSkillcapeVariant } = require("./card-eligibility");
+const sourceCategory = process.argv[2] || "Treasure Trails rewards";
+const cardTag = process.argv[3] || "Clue Reward";
+const explicitTitles = process.argv[4] ? process.argv[4].split("|").map((title) => title.trim()).filter(Boolean) : null;
+const {
+  isAugmentedItemVariant,
+  isGrandExchangeSet,
+  isLootPinataItem,
+  isRedundantSkillcapeVariant
+} = require("./card-eligibility");
 const { cardCreditValue, cardSourceValue } = require("./card-value");
 
 function requestJson(url) {
@@ -29,13 +40,13 @@ function requestJson(url) {
   });
 }
 
-async function categoryMembers() {
+async function categoryMembers(category) {
   const members = [];
   let continuation = "";
   do {
     const params = new URLSearchParams({
-      action: "query", list: "categorymembers", cmtitle: "Category:Treasure Trails rewards",
-      cmnamespace: "0", cmlimit: "500", format: "json", formatversion: "2"
+      action: "query", list: "categorymembers", cmtitle: `Category:${category}`,
+      cmnamespace: "0|14", cmtype: "page|subcat", cmlimit: "500", format: "json", formatversion: "2"
     });
     if (continuation) params.set("cmcontinue", continuation);
     const data = await requestJson(`${API_URL}?${params}`);
@@ -43,6 +54,20 @@ async function categoryMembers() {
     continuation = data.continue?.cmcontinue || "";
   } while (continuation);
   return members;
+}
+
+async function categoryPageMembersRecursive(category, visited = new Set()) {
+  // Reward categories may divide their items among nested tiers and types.
+  const key = category.toLowerCase();
+  if (visited.has(key)) return [];
+  visited.add(key);
+
+  const members = await categoryMembers(category);
+  const pages = members.filter((member) => member.ns === 0);
+  for (const subcategory of members.filter((member) => member.ns === 14)) {
+    pages.push(...await categoryPageMembersRecursive(subcategory.title.replace(/^Category:/i, ""), visited));
+  }
+  return pages;
 }
 
 function cleanWikiText(value = "") {
@@ -105,6 +130,7 @@ function hash(value) {
 }
 
 function rarityForValue(value, sortedValues) {
+  // Rank rewards against one another so tiers adapt as GE prices change.
   let low = 0;
   let high = sortedValues.length;
   while (low < high) {
@@ -124,8 +150,8 @@ function rarityForValue(value, sortedValues) {
 
 async function main() {
   const cards = JSON.parse(await fs.readFile(cataloguePath, "utf8"));
-  const members = await categoryMembers();
-  const titles = [...new Set(members.map((member) => member.title))];
+  const members = explicitTitles ? [] : await categoryPageMembersRecursive(sourceCategory);
+  const titles = explicitTitles || [...new Set(members.map((member) => member.title))];
   const [metadata, geDump] = await Promise.all([fetchMetadata(titles), requestJson(GE_DUMP_URL)]);
   const exchange = new Map(Object.values(geDump).filter((entry) => entry?.name).map((entry) => [entry.name.toLowerCase(), entry]));
   const sortedValues = cards.filter((card) => card.id.startsWith("item-")).map((card) => Number(card.value) || 0).sort((a, b) => a - b);
@@ -134,11 +160,12 @@ async function main() {
   for (const title of titles) {
     const page = metadata.get(title);
     if (!page) continue;
-    const candidate = { name: title, category: ["Resource", "Clue Reward"] };
-    if (isAugmentedItemVariant(candidate) || isRedundantSkillcapeVariant(candidate)) continue;
+    const candidate = { name: title, category: ["Resource", cardTag] };
+    if (isAugmentedItemVariant(candidate) || isGrandExchangeSet(candidate)
+      || isLootPinataItem(candidate) || isRedundantSkillcapeVariant(candidate)) continue;
     const existing = cards.find((card) => card.name.toLowerCase() === title.toLowerCase());
     if (existing) {
-      if (!existing.category.includes("Clue Reward")) existing.category.push("Clue Reward");
+      if (!existing.category.includes(cardTag)) existing.category.push(cardTag);
       updated += 1;
       continue;
     }
@@ -147,10 +174,10 @@ async function main() {
     const rarity = rarityForValue(value, sortedValues);
     const card = {
       id: `item-${slug(title)}-${hash(title).toString(36)}`, name: title,
-      category: ["Resource", "Clue Reward"], imageUrl: page.imageUrl, level: null,
+      category: ["Resource", cardTag], imageUrl: page.imageUrl, level: null,
       value, geValue: Number(ge?.price) || null,
       highAlchValue: Number(ge?.highalch) || page.highAlchValue, experience: null, overrideScore: null,
-      examine: page.examine || "A reward from Treasure Trails.", questItem: false, rarity, wikiTitle: title
+      examine: page.examine || `A reward from ${sourceCategory}.`, questItem: false, rarity, wikiTitle: title
     };
     card.sourceValue = cardSourceValue(card);
     card.value = cardCreditValue(card, card.sourceValue);
@@ -159,7 +186,7 @@ async function main() {
   }
   cards.sort((a, b) => a.name.localeCompare(b.name));
   await fs.writeFile(cataloguePath, `${JSON.stringify(cards, null, 2)}\n`);
-  console.log(`Treasure Trails pages: ${titles.length}; added: ${added}; existing tagged: ${updated}; total cards: ${cards.length}.`);
+  console.log(`${sourceCategory} pages: ${titles.length}; added: ${added}; existing tagged: ${updated}; total cards: ${cards.length}.`);
 }
 
 main().catch((error) => {

@@ -1,6 +1,7 @@
 const path = require("path");
 const webpack = require("webpack");
 
+// Release builds define debug=false so minification removes manual reward tools.
 module.exports = (env = {}) => ({
   context: path.resolve(__dirname, "src"),
   entry: "./app.js",
@@ -19,7 +20,6 @@ module.exports = (env = {}) => ({
     extensions: [".wasm", ".ts", ".mjs", ".js"],
     alias: {
       "alt1-source/xpcounter$": path.resolve(__dirname, "node_modules/alt1-source/src/xpcounter/index.ts"),
-      "alt1-source/chatbox$": path.resolve(__dirname, "node_modules/alt1-source/src/chatbox/index.ts"),
       "alt1/base$": path.resolve(__dirname, "node_modules/alt1/dist/base/index.js"),
       "alt1/ocr$": path.resolve(__dirname, "node_modules/alt1/dist/ocr/index.js"),
       "alt1/fonts/chatbox/12pt.fontmeta.json$": path.resolve(

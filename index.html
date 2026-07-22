@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>RuneScape TCG</title>
+    <link rel="icon" type="image/png" href="./assets/icon.png">
     <link rel="stylesheet" href="./src/styles.css">
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Alt1 collection</p>
           <h1>RuneScape TCG</h1>
         </div>
         <button id="installButton" class="icon-button" title="Install in Alt1" aria-label="Install in Alt1" hidden>
@@ -23,7 +23,7 @@
           <span id="coins">0</span>
           <small>Credits</small>
         </article>
-        <article>
+        <article id="packsStat">
           <span id="packs">0</span>
           <small>Packs</small>
         </article>
@@ -46,23 +46,14 @@
             <span class="rune rune-air"></span>
             <span class="rune rune-fire"></span>
             <span class="rune rune-nature"></span>
+            <strong id="packArtCount" class="pack-art-count">x0</strong>
           </div>
           <div>
             <h2>Origin Pack</h2>
-            <p id="packDescription">Contains RuneScape-themed cards. Duplicates are kept and can be sold from the collection.</p>
+            <p id="packDescription">Contains 5 cards.</p>
           </div>
           <div class="pack-actions">
-            <div class="button-row" aria-label="Open packs">
-              <button id="openPackButton" class="primary">Open 1</button>
-              <button id="openTenPacksButton" class="primary">Open 10</button>
-            </div>
-            <div class="button-row" aria-label="Buy packs">
-              <button id="buyPackButton">Buy 1</button>
-              <button id="buyTenPacksButton">Buy 10</button>
-              <input id="packPurchaseQuantity" type="number" min="1" step="1" value="1" aria-label="Custom pack quantity">
-              <button id="buyCustomPacksButton">Buy X</button>
-              <button id="buyMaxPacksButton">Buy Max</button>
-            </div>
+            <button id="openPackButton" class="primary">Open Pack</button>
           </div>
         </div>
       </section>
@@ -139,7 +130,7 @@
               <button data-reward="boss">Boss Kill</button>
               <button data-reward="clue">Clue Casket</button>
             </div>
-            <p id="rewardStatus" class="muted">XP detection watches visible RuneMetrics counters through Alt1.</p>
+            <p id="rewardStatus" class="muted">XP detection reads visible RuneMetrics counters through Alt1.</p>
           </div>
           <div class="button-row">
             <button id="resetButton" class="danger">Reset</button>
@@ -160,10 +151,14 @@
             <button id="closePackModal" class="icon-button" type="button" title="Close pack" aria-label="Close pack">&times;</button>
           </div>
         </header>
+        <div id="packOpeningSource" class="pack-opening-source" aria-hidden="true">
+          <img src="./assets/icon.png" alt="">
+          <strong>Origin Pack</strong>
+        </div>
         <div id="reveal" class="reveal-grid" aria-live="polite"></div>
       </div>
     </section>
 
-    <script src="./dist/app.bundle.js"></script>
+    <script src="./dist/app.bundle.js?v=20260722-2160"></script>
   </body>
 </html>

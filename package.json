@@ -3,12 +3,12 @@
   "scripts": {
     "curate": "node scripts/curate-card-catalogue.js",
     "cards:clues": "node scripts/import-clue-rewards.js",
+    "cards:achievements": "node scripts/import-clue-rewards.js \"Tasks set\" \"Achievement Reward\"",
     "cards:components": "node scripts/import-invention-components.js",
+    "cards:audit-images": "node scripts/audit-card-images.js",
     "cards:update": "node scripts/generate-card-catalogue.js",
-    "titles:update": "node scripts/update-player-titles.js",
     "build": "webpack --mode production --env debug=true",
     "build:release": "webpack --mode production --env debug=false",
-    "editor": "node scripts/card-editor-server.js",
     "watch": "webpack --watch --mode development"
   },
   "dependencies": {

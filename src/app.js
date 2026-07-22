@@ -1,16 +1,21 @@
-import XpcounterReader from "alt1-source/xpcounter";
 import * as a1lib from "alt1/base";
+import XpcounterReader from "alt1-source/xpcounter";
 import * as OCR from "alt1/ocr";
 import chatfont from "alt1/fonts/chatbox/12pt.fontmeta.json";
 import generatedCards from "./generated-cards.json";
 import rarityConfig from "./rarity-config.json";
 import economyConfig from "./economy-config.json";
 
+// Economy and build-time configuration.
 const CARDS = generatedCards;
 const DEBUG_TOOLS = __DEBUG_TOOLS__;
 
 const RARITY = rarityConfig;
 const MAX_CARD_VALUE = economyConfig.packPrice * economyConfig.maxCardPackValue;
+const BASE_SKILL_PACK_CHANCE = 1 / 500;
+const MAX_SKILL_PACK_CHANCE = 1 / 100;
+const BASE_SKILL_PACK_XP = 100;
+const MAX_SKILL_PACK_XP = 1000;
 
 function cardCreditValue(card) {
   return Math.min(MAX_CARD_VALUE, Math.max(Number(card.value) || 0, RARITY[card.rarity]?.baseCreditValue || 0));
@@ -21,7 +26,7 @@ function foilCardCreditValue(card) {
 }
 
 const REWARD = {
-  skill: { coins: 80, chance: 0.001, label: "Skill tick" },
+  skill: { coins: 80, chance: BASE_SKILL_PACK_CHANCE, label: "Skill tick" },
   boss: { coins: 260, chance: 0, label: "Boss kill" },
   clue: { coins: 420, chance: 0.1, label: "Clue casket" }
 };
@@ -32,25 +37,26 @@ const WIKI_API_URL = "https://runescape.wiki/api.php";
 const PACK_PRICE = economyConfig.packPrice;
 const CARDS_PER_PACK = 5;
 const XP_PER_CREDIT = 10;
-const XP_BASELINE_WARMUP_MS = 10000;
+const RUNEMETRICS_READ_INTERVAL_MS = 600;
+const RUNEMETRICS_RETRY_INTERVAL_MS = 2000;
+const RUNEMETRICS_PANEL_WIDTH = 270;
+const RUNEMETRICS_XP_COLUMN_X = 120;
+const MAX_CREDIBLE_XP_DROP = 5_000_000;
 const COLLECTION_PAGE_SIZE = 60;
 const FOIL_CHANCE = 0.01;
 const FOIL_VALUE_MULTIPLIER = 2;
 const RESET_CONFIRMATION_MS = 8000;
-const RUNEMETRICS_PANEL_WIDTH = 270;
-const RUNEMETRICS_XP_COLUMN_X = 120;
+
+// Runtime state shared by rendering, pack opening, and Alt1 detection.
 const state = load();
 const imageCache = loadImageCache();
 const pendingImages = new Map();
 let xpDetectionActive = false;
-let lastXpBySkill = new Map();
-let pendingXpBySkill = new Map();
-let xpCounterReader = null;
-let xpReadTimer = null;
-let xpSearchTimer = null;
-let xpReadMisses = 0;
-let xpBaselineWarmupUntil = 0;
-let xpDetectionGeneration = 0;
+let xpDetectionMode = "none";
+let runeMetricsReader = null;
+let runeMetricsTimer = null;
+let runeMetricsSearchTimer = null;
+let runeMetricsBaseline = new Map();
 let runeMetricsXpColumnX = RUNEMETRICS_XP_COLUMN_X;
 let collectionPage = 0;
 const unrevealedPackCards = new Set();
@@ -60,6 +66,8 @@ let resetConfirmationTimer = null;
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
 
+// Save data -------------------------------------------------------------------
+
 function defaultState() {
   return {
     coins: 0,
@@ -67,7 +75,6 @@ function defaultState() {
     owned: {},
     foils: {},
     log: [],
-    creditSetup: "zero",
     settings: {
       showDetectionInfo: false
     }
@@ -78,18 +85,12 @@ function load() {
   try {
     const loaded = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     const defaults = defaultState();
-    const hasExistingProgress = Number(loaded.coins) > 0
-      || Object.keys(loaded.owned || {}).length > 0
-      || Object.keys(loaded.foils || {}).length > 0
-      || Array.isArray(loaded.log) && loaded.log.length > 0;
+    delete loaded.creditSetup;
     return {
       ...defaults,
       ...loaded,
       owned: loaded.owned || defaults.owned,
       foils: loaded.foils || defaults.foils,
-      creditSetup: loaded.creditSetup === "pending"
-        ? "zero"
-        : loaded.creditSetup || (hasExistingProgress ? "legacy" : defaults.creditSetup),
       settings: {
         showDetectionInfo: Boolean((loaded.settings || {}).showDetectionInfo)
       }
@@ -133,6 +134,8 @@ function resetProgress() {
   startXpDetection();
 }
 
+// Wiki image URLs use a separate cache so resetting progress does not trigger
+// thousands of avoidable MediaWiki requests.
 function loadImageCache() {
   try {
     return JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY) || "{}");
@@ -199,6 +202,8 @@ function updateCardImages(cardId, source) {
   });
 }
 
+// Pack generation -------------------------------------------------------------
+
 function rollRarity() {
   let roll = Math.random() * 100;
   for (const [rarity, config] of Object.entries(RARITY).reverse()) {
@@ -225,6 +230,8 @@ function pickFromTier(pool, rarity) {
   const minimum = Math.min(...scores);
   const maximum = Math.max(...scores);
   if (maximum <= minimum) return pool[Math.floor(Math.random() * pool.length)];
+  // Keep exceptionally valuable cards less common even after their rarity tier
+  // has been selected. Weights range from 1 for the tier minimum to 1/3 for its maximum.
   const weights = scores.map((score) => 1 - (2 / 3) * ((score - minimum) / (maximum - minimum)));
   let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
   for (let index = 0; index < pool.length; index += 1) {
@@ -248,6 +255,8 @@ function ownedCount(cardId) {
 }
 
 function balancedPackColumns(cardCount) {
+  // Prefer a divisor so the last reveal row is full; prime counts are centered
+  // by the flex container instead.
   const maximumColumns = Math.min(5, cardCount);
   for (let columns = maximumColumns; columns >= 2; columns -= 1) {
     if (cardCount % columns === 0) return columns;
@@ -255,24 +264,26 @@ function balancedPackColumns(cardCount) {
   return maximumColumns;
 }
 
-function openPack(quantity = 1) {
-  const packQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
-  if (state.packs < packQuantity) {
-    log(`${packQuantity.toLocaleString()} packs required.`);
-    render();
-    return;
+function openPack() {
+  if (state.packs < 1) {
+    if (state.coins < PACK_PRICE) {
+      log(`${PACK_PRICE.toLocaleString()} credits required to buy a pack.`);
+      render();
+      return;
+    }
+    state.coins -= PACK_PRICE;
+    state.packs += 1;
+    log(`Bought an Origin Pack for ${PACK_PRICE.toLocaleString()} credits.`);
   }
 
-  state.packs -= packQuantity;
+  state.packs -= 1;
   state.owned ||= {};
   state.foils ||= {};
-  const opened = Array.from({ length: CARDS_PER_PACK * packQuantity }, weightedCard);
+  const opened = Array.from({ length: CARDS_PER_PACK }, weightedCard);
   const reveal = qs("#reveal");
   reveal.innerHTML = "";
   reveal.style.setProperty("--pack-card-width", `${100 / balancedPackColumns(opened.length)}%`);
-  qs("#packModalTitle").textContent = packQuantity === 1
-    ? `Your ${CARDS_PER_PACK} cards`
-    : `${packQuantity.toLocaleString()} packs | ${opened.length.toLocaleString()} cards`;
+  qs("#packModalTitle").textContent = `Your ${CARDS_PER_PACK} cards`;
   unrevealedPackCards.clear();
 
   opened.forEach((card) => {
@@ -294,6 +305,8 @@ function openPack(quantity = 1) {
   openPackModal();
 }
 
+// Card UI and collection economy ---------------------------------------------
+
 function openPackModal() {
   const modal = qs("#packModal");
   qsa("#packModal .pack-card.face-down").forEach((card) => unrevealedPackCards.add(card));
@@ -302,8 +315,33 @@ function openPackModal() {
   qs("#revealAllCardsButton").disabled = unrevealedPackCards.size === 0;
   document.body.classList.add("modal-open");
   qs(".app-shell").inert = true;
+  startPackDealAnimation(modal);
   const firstCard = modal.querySelector(".pack-card");
   (firstCard || qs("#closePackModal")).focus();
+}
+
+function startPackDealAnimation(modal) {
+  const source = qs("#packOpeningSource");
+  const cards = qsa("#packModal .pack-card");
+  source.classList.remove("active");
+  cards.forEach((card) => card.classList.remove("dealing"));
+
+  // Wait for the visible modal to lay out, then translate each card from the
+  // center pack to its already-reserved grid position.
+  window.requestAnimationFrame(() => {
+    const sourceRect = source.getBoundingClientRect();
+    const sourceX = sourceRect.left + sourceRect.width / 2;
+    const sourceY = sourceRect.top + sourceRect.height / 2;
+    source.classList.add("active");
+    cards.forEach((card, index) => {
+      const cardRect = card.getBoundingClientRect();
+      card.style.setProperty("--deal-x", `${sourceX - cardRect.left - cardRect.width / 2}px`);
+      card.style.setProperty("--deal-y", `${sourceY - cardRect.top - cardRect.height / 2}px`);
+      card.style.setProperty("--deal-delay", `${Math.min(index, 14) * 45}ms`);
+      card.classList.add("dealing");
+      card.addEventListener("animationend", () => card.classList.remove("dealing"), { once: true });
+    });
+  });
 }
 
 function closePackModal() {
@@ -323,7 +361,6 @@ function cardNode(card, count, packReveal = false, options = {}) {
   el.className = `card ${card.rarity.toLowerCase()}${count ? "" : " locked"}${foil ? " foil" : ""}${packReveal ? " pack-card face-down" : ""}`;
   el.dataset.cardId = card.id;
   const imageUrl = card.imageUrl || imageCache[card.id] || "";
-  const type = (card.category || [])[1] || (card.category || [])[0] || "Unknown";
   const sellValue = cardCreditValue(card);
   const normalCopies = Number((state.owned || {})[card.id] || 0);
   const foilCopies = Number((state.foils || {})[card.id] || 0);
@@ -338,7 +375,6 @@ function cardNode(card, count, packReveal = false, options = {}) {
         <span>${card.name.slice(0, 1)}</span>
       </div>
       <h3>${card.name}</h3>
-      <small>${type}</small>
       <small class="card-value">Value: ${sellValue.toLocaleString()} credits${foil ? ` | Foil: ${foilCardCreditValue(card).toLocaleString()}` : ""}</small>
       <p>${card.examine || "No examine text."}</p>
       ${!packReveal && count ? `<div class="card-actions">
@@ -346,7 +382,7 @@ function cardNode(card, count, packReveal = false, options = {}) {
         ${foilCopies ? `<button type="button" data-sell="foil">Sell foil (${foilCopies})</button>` : ""}
       </div>` : ""}
     </div>
-    ${packReveal ? '<div class="card-face card-back" aria-hidden="true"><img class="card-back-logo" src="./assets/rs-logo.png" alt=""><strong>RS TCG</strong></div>' : ""}
+    ${packReveal ? '<div class="card-face card-back" aria-hidden="true"><img class="card-back-logo" src="./assets/icon.png" alt=""><strong>RS TCG</strong></div>' : ""}
   `;
   el.querySelector("p").title = card.examine || "No examine text.";
   const artwork = el.querySelector(".card-art img");
@@ -402,6 +438,8 @@ function duplicateSale() {
   for (const card of CARDS) {
     const normalCopies = Number((state.owned || {})[card.id] || 0);
     const foilCopies = Number((state.foils || {})[card.id] || 0);
+    // A foil satisfies ownership, allowing every normal copy to be considered a
+    // duplicate. Otherwise one normal copy is retained.
     const normalToSell = foilCopies > 0 ? normalCopies : Math.max(0, normalCopies - 1);
     const foilsToSell = Math.max(0, foilCopies - 1);
     if (!normalToSell && !foilsToSell) continue;
@@ -445,26 +483,13 @@ function revealAllPackCards() {
   [...unrevealedPackCards].forEach(revealPackCard);
 }
 
-function buyPack(quantity = 1) {
-  const packQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
-  const totalPrice = PACK_PRICE * packQuantity;
-  if (!Number.isSafeInteger(totalPrice) || state.coins < totalPrice) {
-    log(`Not enough credits to buy ${packQuantity.toLocaleString()} packs (${totalPrice.toLocaleString()} required).`);
-  } else {
-    state.coins -= totalPrice;
-    state.packs += packQuantity;
-    log(`Bought ${packQuantity.toLocaleString()} Origin ${packQuantity === 1 ? "Pack" : "Packs"} for ${totalPrice.toLocaleString()} credits.`);
-  }
-  save();
-  render();
-}
-
-function addReward(kind, statusText = "", coinOverride = null) {
+function addReward(kind, statusText = "", coinOverride = null, chanceOverride = null) {
   const reward = REWARD[kind];
   const coins = coinOverride === null ? reward.coins : Math.max(0, Math.floor(Number(coinOverride) || 0));
   state.coins += coins;
-  const chance = reward.chance;
-  if (Math.random() < chance) {
+  const chance = chanceOverride === null ? reward.chance : chanceOverride;
+  const packDropped = Math.random() < chance;
+  if (packDropped) {
     state.packs += 1;
     qs("#rewardStatus").textContent = statusText || `${reward.label}: +${coins} credits and a pack dropped.`;
     log(`${reward.label} awarded ${coins.toLocaleString()} credits and one pack.`);
@@ -474,21 +499,46 @@ function addReward(kind, statusText = "", coinOverride = null) {
   }
   save();
   render();
+  if (packDropped) animateFreePackDrop();
 }
+
+function animateFreePackDrop() {
+  const counter = qs("#packsStat");
+  counter.classList.remove("free-pack-drop");
+  void counter.offsetWidth;
+  counter.classList.add("free-pack-drop");
+  counter.addEventListener("animationend", () => counter.classList.remove("free-pack-drop"), { once: true });
+}
+
+function getSkillPackChance(xpGained) {
+  const xp = Math.max(0, xpGained);
+  if (xp < BASE_SKILL_PACK_XP) {
+    return BASE_SKILL_PACK_CHANCE * (xp / BASE_SKILL_PACK_XP);
+  }
+  if (xp >= MAX_SKILL_PACK_XP) return MAX_SKILL_PACK_CHANCE;
+
+  const progress = (xp - BASE_SKILL_PACK_XP) / (MAX_SKILL_PACK_XP - BASE_SKILL_PACK_XP);
+  return BASE_SKILL_PACK_CHANCE
+    + progress * (MAX_SKILL_PACK_CHANCE - BASE_SKILL_PACK_CHANCE);
+}
+
+// Alt1 RuneMetrics XP detection ----------------------------------------------
 
 function getAlt1Status() {
   return {
     hasAlt1: Boolean(window.alt1),
     installed: Boolean(window.alt1 && alt1.permissionInstalled),
     rsLinked: Boolean(window.alt1 && alt1.rsLinked),
-    permissionPixel: Boolean(window.alt1 && alt1.permissionPixel),
     version: String((window.alt1 && alt1.version) || "unknown")
   };
 }
 
 function hasXpDetectionAccess() {
   const status = getAlt1Status();
-  return status.hasAlt1 && status.installed && status.rsLinked && status.permissionPixel;
+  return status.hasAlt1
+    && status.installed
+    && status.rsLinked
+    && Boolean(window.alt1?.permissionPixel);
 }
 
 function describeAlt1Status() {
@@ -498,10 +548,10 @@ function describeAlt1Status() {
   const missing = [];
   if (!status.installed) missing.push("installed app context");
   if (!status.rsLinked) missing.push("linked RuneScape window");
-  if (!status.permissionPixel) missing.push("View screen permission");
+  if (!window.alt1.permissionPixel) missing.push("View screen permission");
   return missing.length
     ? `Missing: ${missing.join(", ")} (Alt1 ${status.version}).`
-    : `Alt1 ${status.version} ready. RuneMetrics screen reader is available.`;
+    : `Alt1 ${status.version} ready. RuneMetrics XP detection is active.`;
 }
 
 function setXpDetectionStatus(text, active = false) {
@@ -528,210 +578,156 @@ function startXpDetection() {
     return;
   }
 
+  // Alt1 can inject its browser API after imported modules initialize.
+  // Refresh the wrapper's cached environment before using capture helpers.
+  a1lib.resetEnvironment();
   xpDetectionActive = true;
-  xpDetectionGeneration += 1;
-  lastXpBySkill.clear();
-  pendingXpBySkill.clear();
-  xpBaselineWarmupUntil = Date.now() + XP_BASELINE_WARMUP_MS;
-  xpReadMisses = 0;
-  xpCounterReader = new XpcounterReader();
-  setXpDetectionStatus("Finding RuneMetrics counters", true);
-  log("RuneMetrics XP screen reader started.");
+  xpDetectionMode = "runemetrics";
+  startRuneMetricsDetection();
   render();
-  findXpCounters();
-}
-
-function findXpCounters() {
-  if (!xpDetectionActive || !xpCounterReader || xpCounterReader.searching) return;
-  const reader = xpCounterReader;
-  const generation = xpDetectionGeneration;
-  setXpDetectionStatus("Finding RuneMetrics counters", true);
-  reader.findAsync((position) => {
-    if (!xpDetectionActive || xpCounterReader !== reader || xpDetectionGeneration !== generation) return;
-    if (!position) {
-      setXpDetectionStatus("Waiting for visible RuneMetrics counters", true);
-      xpSearchTimer = window.setTimeout(findXpCounters, 2500);
-      return;
-    }
-
-    position.w = Math.min(RUNEMETRICS_PANEL_WIDTH, Math.max(160, Number(alt1.rsWidth) - position.x));
-    runeMetricsXpColumnX = RUNEMETRICS_XP_COLUMN_X;
-    lastXpBySkill.clear();
-    pendingXpBySkill.clear();
-    xpBaselineWarmupUntil = Date.now() + XP_BASELINE_WARMUP_MS;
-    xpReadMisses = 0;
-    readXpCounters();
-    xpReadTimer = window.setInterval(readXpCounters, 300);
-  });
 }
 
 function stopXpDetection(message = "Idle") {
-  xpDetectionGeneration += 1;
-  if (xpReadTimer !== null) {
-    window.clearInterval(xpReadTimer);
-    xpReadTimer = null;
-  }
-  if (xpSearchTimer !== null) {
-    window.clearTimeout(xpSearchTimer);
-    xpSearchTimer = null;
-  }
+  if (runeMetricsTimer !== null) window.clearTimeout(runeMetricsTimer);
+  if (runeMetricsSearchTimer !== null) window.clearTimeout(runeMetricsSearchTimer);
+  runeMetricsTimer = null;
+  runeMetricsSearchTimer = null;
+  runeMetricsReader = null;
+  runeMetricsBaseline.clear();
   xpDetectionActive = false;
-  xpCounterReader = null;
-  lastXpBySkill.clear();
-  pendingXpBySkill.clear();
-  xpBaselineWarmupUntil = 0;
+  xpDetectionMode = "none";
   setXpDetectionStatus(message);
 }
 
-function readXpCounters() {
-  if (!xpDetectionActive || !xpCounterReader || !xpCounterReader.pos) return;
-  let rows;
-  try {
-    rows = readRuneMetricsRows();
-  } catch (error) {
-    log(`RuneMetrics read error: ${error && error.message ? error.message : error}`);
-    restartXpCounterSearch();
-    return;
-  }
+function startRuneMetricsDetection() {
+  runeMetricsReader = new XpcounterReader();
+  runeMetricsBaseline.clear();
+  setXpDetectionStatus("Finding RuneMetrics counters", true);
+  findRuneMetricsCounters();
+}
 
-  const rateRows = rows.filter((row) => row.isRate);
-  if (rateRows.length) {
-    setXpDetectionStatus("RuneMetrics is showing XP/h; switch counters to XP", false);
-    rateRows.forEach((row) => {
-      lastXpBySkill.delete(row.skill);
-      pendingXpBySkill.delete(row.skill);
-    });
-  }
-
-  const readings = new Map(
-    rows
-      .filter((row) => !row.isRate && Number.isFinite(row.value) && row.value >= 0)
-      .map((row) => [row.skill, row.value])
-  );
-  if (!readings.size && rateRows.length) return;
-  if (!readings.size) {
-    xpReadMisses += 1;
-    setXpDetectionStatus(
-      rows.length ? "Counters found; waiting for exact XP values" : "Counters found; calibrating XP column",
-      true
-    );
-    if (xpReadMisses >= 20 && !rows.length) restartXpCounterSearch();
-    return;
-  }
-
-  xpReadMisses = 0;
-  if (Date.now() < xpBaselineWarmupUntil || !lastXpBySkill.size) {
-    readings.forEach((xp, skill) => lastXpBySkill.set(skill, xp));
-    pendingXpBySkill.clear();
-    const rounded = xpCounterReader.rounded ? " (rounded values)" : "";
-    const warmupSeconds = Math.ceil((xpBaselineWarmupUntil - Date.now()) / 1000);
-    const status = warmupSeconds > 0
-      ? `Calibrating XP baseline (${warmupSeconds}s)`
-      : `Watching ${readings.size} counter${readings.size === 1 ? "" : "s"}${rounded}`;
-    setXpDetectionStatus(status, true);
-    return;
-  }
-
-  let totalDelta = 0;
-  let skillDelta = 0;
-  readings.forEach((xp, skill) => {
-    if (!lastXpBySkill.has(skill)) {
-      lastXpBySkill.set(skill, xp);
-      pendingXpBySkill.delete(skill);
+function findRuneMetricsCounters() {
+  if (!xpDetectionActive || xpDetectionMode !== "runemetrics" || !runeMetricsReader) return;
+  runeMetricsReader.findAsync((position) => {
+    if (!xpDetectionActive || !runeMetricsReader) return;
+    if (!position) {
+      runeMetricsBaseline.clear();
+      setXpDetectionStatus("Waiting for visible RuneMetrics counters", true);
+      runeMetricsSearchTimer = window.setTimeout(findRuneMetricsCounters, RUNEMETRICS_RETRY_INTERVAL_MS);
       return;
     }
-
-    const pending = pendingXpBySkill.get(skill);
-    const confirmations = pending && pending.value === xp ? pending.confirmations + 1 : 1;
-    pendingXpBySkill.set(skill, { value: xp, confirmations });
-    if (confirmations < 2) return;
-
-    const previousXp = lastXpBySkill.get(skill);
-    const delta = xp - previousXp;
-    if (delta > 0) {
-      if (skill === "tot") totalDelta += delta;
-      else skillDelta += delta;
-    }
-    if (delta >= 0) lastXpBySkill.set(skill, xp);
+    position.w = Math.min(RUNEMETRICS_PANEL_WIDTH, Math.max(160, Number(alt1.rsWidth) - position.x));
+    runeMetricsXpColumnX = RUNEMETRICS_XP_COLUMN_X;
+    runeMetricsBaseline.clear();
+    readRuneMetricsCounters();
   });
-
-  const gained = lastXpBySkill.has("tot") ? totalDelta : skillDelta;
-  if (gained <= 0) return;
-
-  const coins = Math.floor(gained / XP_PER_CREDIT);
-  if (coins <= 0) return;
-
-  addReward(
-    "skill",
-    `Alt1 detected +${gained.toLocaleString()} XP: +${coins.toLocaleString()} credits.`,
-    coins
-  );
 }
 
-function readRuneMetricsRows() {
-  const position = xpCounterReader.pos;
-  const image = a1lib.captureHold(position.x, position.y, position.w, (position.rows + 2) * 27);
-  xpCounterReader.readSkills(image);
-  const buffer = image.toData(position.x, position.y, position.w, position.h);
-  const rows = [];
-  let rounded = false;
-
-  for (let index = 0; index < position.rows; index += 1) {
-    const result = readXpColumnLine(buffer, index * 27 + 18);
-    if (!result) continue;
-
-    const text = result.text.trim();
-    const isRate = /(?:xp\s*\/\s*h|\/\s*h|per\s+hour)/i.test(text);
-    let multiplier = 1;
-    if (/M(?:\s|$)/i.test(text)) {
-      multiplier = 1_000_000;
-      rounded = true;
-    } else if (/[TK](?:\s|$)/i.test(text)) {
-      multiplier = 1_000;
-      rounded = true;
-    }
-
-    const numericText = text.match(/[\d][\d,. ]*/)?.[0] || "";
-    const normalized = multiplier === 1
-      ? numericText.replace(/[,\. ]/g, "")
-      : numericText.replace(/,/g, ".").replace(/\s/g, "");
-    const value = (multiplier === 1 ? Number.parseInt(normalized, 10) : Number.parseFloat(normalized)) * multiplier;
-    const skill = xpCounterReader.skills[index];
-    if (skill) rows.push({ skill, value, text, isRate });
-  }
-
-  xpCounterReader.rounded = rounded;
-  return rows;
-}
-
-function readXpColumnLine(buffer, baselineY) {
+function readRuneMetricsLine(buffer, baselineY) {
   const offsets = [0];
   for (let offset = 1; offset <= 20; offset += 1) offsets.push(-offset, offset);
-
   for (const offset of offsets) {
     const x = runeMetricsXpColumnX + offset;
     const result = OCR.readLine(buffer, chatfont, [255, 255, 255], x, baselineY, true, false);
-    if (result && result.text.trim()) {
+    if (result?.text?.trim()) {
       runeMetricsXpColumnX = x;
-      return result;
+      return result.text.trim();
     }
   }
-  return null;
+  return "";
 }
 
-function restartXpCounterSearch() {
-  if (xpReadTimer !== null) {
-    window.clearInterval(xpReadTimer);
-    xpReadTimer = null;
-  }
-  if (!xpCounterReader) return;
-  xpCounterReader.pos = null;
-  lastXpBySkill.clear();
-  pendingXpBySkill.clear();
-  xpBaselineWarmupUntil = Date.now() + XP_BASELINE_WARMUP_MS;
-  xpReadMisses = 0;
-  findXpCounters();
+function parseRuneMetricsValue(text) {
+  if (!text || /lots|xp\s*\/\s*h|\/\s*h/i.test(text)) return null;
+  const match = text.match(/\d[\d,. ]*/);
+  if (!match) return null;
+  let multiplier = 1;
+  if (/M(?:\s|$)/i.test(text)) multiplier = 1_000_000;
+  else if (/[TK](?:\s|$)/i.test(text)) multiplier = 1_000;
+  const raw = multiplier === 1
+    ? match[0].replace(/[,\. ]/g, "")
+    : match[0].replace(/,/g, ".").replace(/\s/g, "");
+  const value = (multiplier === 1 ? Number.parseInt(raw, 10) : Number.parseFloat(raw)) * multiplier;
+  return Number.isFinite(value) ? value : null;
 }
+
+function getRuneMetricsSnapshot() {
+  const position = runeMetricsReader.pos;
+  const image = a1lib.captureHold(position.x, position.y, position.w, (position.rows + 2) * 27);
+  runeMetricsReader.readSkills(image);
+  const buffer = image.toData(position.x, position.y, position.w, position.h);
+  const readings = new Map();
+
+  for (let index = 0; index < position.rows; index += 1) {
+    const skill = runeMetricsReader.skills[index];
+    const value = parseRuneMetricsValue(readRuneMetricsLine(buffer, index * 27 + 18));
+    if (skill && value !== null) readings.set(skill, value);
+  }
+  return readings;
+}
+
+function hasSameRuneMetricsRows(readings) {
+  return readings.size > 0
+    && readings.size === runeMetricsBaseline.size
+    && [...readings.keys()].every((skill) => runeMetricsBaseline.has(skill));
+}
+
+function calculateRuneMetricsGain(readings) {
+  const deltas = [...readings].map(([skill, value]) => ({
+    skill,
+    delta: value - runeMetricsBaseline.get(skill)
+  }));
+  const invalid = deltas.some(({ delta }) => delta < 0 || delta > MAX_CREDIBLE_XP_DROP);
+  if (invalid) return null;
+  return deltas.find(({ skill }) => skill === "tot")?.delta
+    ?? deltas.reduce((sum, { delta }) => sum + delta, 0);
+}
+
+function scheduleRuneMetricsRead() {
+  runeMetricsTimer = window.setTimeout(readRuneMetricsCounters, RUNEMETRICS_READ_INTERVAL_MS);
+}
+
+function readRuneMetricsCounters() {
+  if (!xpDetectionActive || xpDetectionMode !== "runemetrics" || !runeMetricsReader?.pos) return;
+  try {
+    const readings = getRuneMetricsSnapshot();
+    if (!hasSameRuneMetricsRows(readings)) {
+      runeMetricsBaseline = readings;
+      const status = readings.size > 0
+        ? `Calibrated ${readings.size} RuneMetrics counter${readings.size === 1 ? "" : "s"}`
+        : "RuneMetrics found; waiting for XP values";
+      setXpDetectionStatus(status, true);
+    } else {
+      const gained = calculateRuneMetricsGain(readings);
+      runeMetricsBaseline = readings;
+      if (gained > 0) {
+        const credits = Math.ceil(gained / XP_PER_CREDIT);
+        addReward(
+          "skill",
+          `Alt1 detected +${gained.toLocaleString()} XP: +${credits.toLocaleString()} credits.`,
+          credits,
+          getSkillPackChance(gained)
+        );
+      }
+      setXpDetectionStatus(`Watching ${readings.size} RuneMetrics counter${readings.size === 1 ? "" : "s"}`, true);
+    }
+  } catch (error) {
+    runeMetricsBaseline.clear();
+    runeMetricsReader.pos = null;
+    setXpDetectionStatus(`RuneMetrics read failed: ${error?.message || error}`);
+    runeMetricsSearchTimer = window.setTimeout(findRuneMetricsCounters, 1000);
+    return;
+  }
+  scheduleRuneMetricsRead();
+}
+
+
+
+
+
+
+
+// Rendering and interaction --------------------------------------------------
 
 function renderCollection() {
   const search = qs("#searchInput").value.trim().toLowerCase();
@@ -789,20 +785,10 @@ function render() {
   const ownedUnique = CARDS.filter((card) => ownedCount(card.id) > 0).length;
   qs("#coins").textContent = state.coins.toLocaleString();
   qs("#packs").textContent = state.packs.toLocaleString();
-  qs("#buyPackButton").textContent = `Buy 1 (${PACK_PRICE.toLocaleString()})`;
-  qs("#buyTenPacksButton").textContent = `Buy 10 (${(PACK_PRICE * 10).toLocaleString()})`;
-  qs("#openPackButton").disabled = state.packs < 1;
-  qs("#openTenPacksButton").disabled = state.packs < 10;
-  qs("#buyPackButton").disabled = state.coins < PACK_PRICE;
-  qs("#buyTenPacksButton").disabled = state.coins < PACK_PRICE * 10;
-  const affordablePacks = Math.floor(state.coins / PACK_PRICE);
-  qs("#buyMaxPacksButton").disabled = affordablePacks < 1;
-  qs("#buyMaxPacksButton").textContent = affordablePacks > 0
-    ? `Buy Max (${affordablePacks.toLocaleString()})`
-    : "Buy Max";
-  const customQuantity = Math.max(1, Math.floor(Number(qs("#packPurchaseQuantity").value) || 1));
-  qs("#buyCustomPacksButton").disabled = !Number.isSafeInteger(PACK_PRICE * customQuantity)
-    || state.coins < PACK_PRICE * customQuantity;
+  qs("#packArtCount").textContent = `x${state.packs.toLocaleString()}`;
+  const hasPack = state.packs > 0;
+  qs("#openPackButton").textContent = hasPack ? "Open Pack" : `Buy Pack (${PACK_PRICE.toLocaleString()})`;
+  qs("#openPackButton").disabled = !hasPack && state.coins < PACK_PRICE;
   qs("#packDescription").textContent = `Contains ${CARDS_PER_PACK} RuneScape-themed cards. Duplicates are kept and can be sold from the collection.`;
   qs("#ownedCount").textContent = `${ownedUnique}/${CARDS.length}`;
   qs("#activityPanel").hidden = !state.settings.showDetectionInfo;
@@ -835,12 +821,6 @@ function identifyAlt1App() {
 
 function bind() {
   qs("#openPackButton").addEventListener("click", openPack);
-  qs("#buyPackButton").addEventListener("click", buyPack);
-  qs("#openTenPacksButton").addEventListener("click", () => openPack(10));
-  qs("#buyTenPacksButton").addEventListener("click", () => buyPack(10));
-  qs("#buyCustomPacksButton").addEventListener("click", () => buyPack(qs("#packPurchaseQuantity").value));
-  qs("#buyMaxPacksButton").addEventListener("click", () => buyPack(Math.floor(state.coins / PACK_PRICE)));
-  qs("#packPurchaseQuantity").addEventListener("input", render);
   qs("#closePackModal").addEventListener("click", closePackModal);
   qs("#revealAllCardsButton").addEventListener("click", revealAllPackCards);
   qs("#packModal").addEventListener("click", (event) => {
@@ -914,25 +894,14 @@ configureDebugTools();
 bind();
 identifyAlt1App();
 render();
-startXpDetection();
-window.addEventListener("focus", () => {
-  startXpDetection();
-});
 window.rs3Tcg = {
   ...(DEBUG_TOOLS ? { addReward } : {}),
   openPack,
   startXpDetection,
   stopXpDetection,
-  checkAlt1Status,
-  exportSave: () => btoa(JSON.stringify(state)),
-  importSave: (saveText) => {
-    const imported = JSON.parse(atob(saveText));
-    Object.assign(state, imported);
-    state.owned ||= {};
-    state.foils ||= {};
-    state.creditSetup = imported.creditSetup === "pending" ? "zero" : imported.creditSetup || "legacy";
-    state.settings = { ...defaultState().settings, ...(state.settings || {}) };
-    save();
-    render();
-  }
+  checkAlt1Status
 };
+startXpDetection();
+window.addEventListener("focus", () => {
+  startXpDetection();
+});
