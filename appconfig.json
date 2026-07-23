@@ -1,7 +1,12 @@
 {
   "appName": "RS TCG",
+<<<<<<< HEAD
   "description": "A RuneScape card collection app for Alt1, inspired by OSRS TCG.",
   "appUrl": "./index.html?v=20260723-0080",
+=======
+  "description": "Open packs and collect RuneScape-related cards, inspired by OSRS TCG.",
+  "appUrl": "./index.html?v=20260723-0070",
+>>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
   "configUrl": "./appconfig.json",
   "iconUrl": "./assets/icon.png",
   "defaultWidth": 420,

@@ -131,10 +131,16 @@ function defaultState() {
 
 function normalizeCollection(collection) {
   if (!collection || typeof collection !== "object" || Array.isArray(collection)) return {};
+<<<<<<< HEAD
   return Object.fromEntries(Object.entries(collection).flatMap(([cardId, copies]) => {
     const count = Math.floor(Number(copies));
     return CARD_IDS.has(cardId) && Number.isFinite(count) && count > 0 ? [[cardId, count]] : [];
   }));
+=======
+  return Object.fromEntries(Object.entries(collection)
+    .filter(([cardId, copies]) => CARD_IDS.has(cardId) && Number.isFinite(Number(copies)) && Number(copies) > 0)
+    .map(([cardId, copies]) => [cardId, Math.floor(Number(copies))]));
+>>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
 }
 
 function normalizeState(loaded) {
@@ -159,7 +165,12 @@ function normalizeState(loaded) {
 
 function load() {
   try {
+<<<<<<< HEAD
     return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
+=======
+    const loaded = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    return normalizeState(loaded);
+>>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
   } catch {
     return defaultState();
   }
@@ -179,14 +190,21 @@ function exportSave() {
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+<<<<<<< HEAD
   link.href = url;
   link.download = `runescape-tcg-save-${backup.exportedAt.slice(0, 10)}.json`;
+=======
+  const date = backup.exportedAt.slice(0, 10);
+  link.href = url;
+  link.download = `runescape-tcg-save-${date}.json`;
+>>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
   document.body.append(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+<<<<<<< HEAD
 function readFileText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -211,6 +229,20 @@ async function importSave(file) {
 
     Object.keys(state).forEach((key) => { delete state[key]; });
     Object.assign(state, normalizeState(backup.data));
+=======
+async function importSave(file) {
+  const status = qs("#saveBackupStatus");
+  try {
+    const backup = JSON.parse(await file.text());
+    if (backup?.format !== "runescape-tcg-save" || backup?.version !== 1 || !backup.data) {
+      throw new Error("This is not a supported RuneScape TCG save backup.");
+    }
+    if (!window.confirm("Replace your current RuneScape TCG progress with this backup?")) return;
+
+    const restored = normalizeState(backup.data);
+    Object.keys(state).forEach((key) => { delete state[key]; });
+    Object.assign(state, restored);
+>>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
     collectionPage = 0;
     save();
     render();
@@ -1058,6 +1090,10 @@ function bind() {
   });
   qs("#resetButton").addEventListener("click", resetProgress);
   qs("#exportSaveButton").addEventListener("click", exportSave);
+<<<<<<< HEAD
+=======
+  qs("#importSaveButton").addEventListener("click", () => qs("#importSaveInput").click());
+>>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
   qs("#importSaveInput").addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
     if (file) await importSave(file);
