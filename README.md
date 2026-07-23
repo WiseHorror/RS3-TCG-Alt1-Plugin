@@ -49,7 +49,7 @@ Both production commands write `dist/app.bundle.js`, so the last build command d
 With the local server running, open `http://localhost:8080/index.html` in Alt1. A hosted copy can be installed directly from its manifest:
 
 ```text
-alt1://addapp/wisehorror.github.io/RS3-TCG-Alt1-Plugin/appconfig.json
+alt1://addapp/https://wisehorror.github.io/RS3-TCG-Alt1-Plugin/appconfig.json
 ```
 
 The app requests Alt1's `pixel` permission to locate and read the visible RuneMetrics panel. It does not read game memory.
