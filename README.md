@@ -21,6 +21,7 @@ With that said, if you want to use the plugin, make sure to back up your save fi
 - Duplicate storage, individual card sales, and a Sell Duplicates action.
 - Always-on RuneMetrics XP detection through Alt1.
 - RuneScape Wiki images and examine text, with resolved image URLs cached locally.
+- Full, inventory-only, and image-free display modes for lower bandwidth use.
 - Progress stored in the app's local browser storage. No backend or account is required.
 - Exportable and restorable JSON save backups from Settings.
 

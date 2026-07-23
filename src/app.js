@@ -125,7 +125,8 @@ function defaultState() {
     log: [],
     settings: {
       showDetectionInfo: false,
-      soundVolume: 70
+      soundVolume: 70,
+      cardImageMode: "full"
     }
   };
 }
@@ -142,6 +143,9 @@ function normalizeState(loaded) {
   const defaults = defaultState();
   const source = loaded && typeof loaded === "object" && !Array.isArray(loaded) ? loaded : {};
   const soundVolume = Number(source.settings?.soundVolume ?? defaults.settings.soundVolume);
+  const cardImageMode = ["full", "inventory", "none"].includes(source.settings?.cardImageMode)
+    ? source.settings.cardImageMode
+    : defaults.settings.cardImageMode;
   return {
     coins: Math.max(0, Math.floor(Number(source.coins) || 0)),
     packs: Math.max(0, Math.floor(Number(source.packs) || 0)),
@@ -153,7 +157,8 @@ function normalizeState(loaded) {
     })) : [],
     settings: {
       showDetectionInfo: Boolean(source.settings?.showDetectionInfo),
-      soundVolume: Number.isFinite(soundVolume) ? Math.min(100, Math.max(0, soundVolume)) : defaults.settings.soundVolume
+      soundVolume: Number.isFinite(soundVolume) ? Math.min(100, Math.max(0, soundVolume)) : defaults.settings.soundVolume,
+      cardImageMode
     }
   };
 }
@@ -337,11 +342,23 @@ async function resolveWikiImage(card) {
 }
 
 function updateCardImages(cardId, source) {
+  if (state.settings.cardImageMode !== "full") return;
   qsa(`[data-card-id="${cardId}"] .card-front .card-art img`).forEach((image) => {
     image.hidden = false;
     image.src = source;
     image.nextElementSibling.hidden = true;
   });
+}
+
+function cardImageUrl(card) {
+  const mode = state.settings.cardImageMode;
+  if (mode === "none") return "";
+  if (mode === "full") return card.imageUrl || imageCache[card.id] || "";
+  if (!card.id.startsWith("item-") || !card.imageUrl) return "";
+
+  const inventoryUrl = card.imageUrl.replace(/_detail\.png(?=[?#]|$)/i, ".png");
+  if (inventoryUrl === card.imageUrl || /\.gif(?=[?#]|$)/i.test(inventoryUrl)) return "";
+  return inventoryUrl;
 }
 
 // Pack generation -------------------------------------------------------------
@@ -506,7 +523,7 @@ function cardNode(card, count, packReveal = false, options = {}) {
   el.dataset.cardId = card.id;
   el.dataset.rarity = card.rarity;
   el.dataset.foil = String(foil);
-  const imageUrl = card.imageUrl || imageCache[card.id] || "";
+  const imageUrl = cardImageUrl(card);
   const sellValue = cardCreditValue(card);
   const normalCopies = Number((state.owned || {})[card.id] || 0);
   const foilCopies = Number((state.foils || {})[card.id] || 0);
@@ -559,7 +576,7 @@ function cardNode(card, count, packReveal = false, options = {}) {
       if (event.key === "Enter") revealPackCard(el);
     });
   }
-  resolveWikiImage(card);
+  if (state.settings.cardImageMode === "full") resolveWikiImage(card);
   return el;
 }
 
@@ -959,6 +976,7 @@ function render() {
   qs("#showDetectionInfoToggle").checked = Boolean(state.settings.showDetectionInfo);
   qs("#soundVolume").value = String(state.settings.soundVolume);
   qs("#soundVolumeValue").textContent = `${state.settings.soundVolume}%`;
+  qs("#cardImageMode").value = state.settings.cardImageMode;
   const duplicateSummary = duplicateSale();
   qs("#sellDuplicatesButton").disabled = duplicateSummary.copies === 0;
   qs("#sellDuplicatesButton").textContent = duplicateSummary.copies
@@ -1091,6 +1109,11 @@ function bind() {
     state.settings.soundVolume = Number(event.target.value);
     qs("#soundVolumeValue").textContent = `${state.settings.soundVolume}%`;
     save();
+  });
+  qs("#cardImageMode").addEventListener("change", (event) => {
+    state.settings.cardImageMode = event.target.value;
+    save();
+    renderCollection();
   });
   qs("#resetButton").addEventListener("click", resetProgress);
   qs("#exportSaveButton").addEventListener("click", exportSave);
