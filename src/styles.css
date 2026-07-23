@@ -789,13 +789,6 @@ textarea {
   margin: 4px 0 0;
 }
 
-<<<<<<< HEAD
-=======
-.save-actions button {
-  flex: 0 0 auto;
-}
-
->>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
 .save-action-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -803,7 +796,6 @@ textarea {
   gap: 8px;
 }
 
-<<<<<<< HEAD
 .settings-list .import-save-button {
   display: inline-flex;
   align-items: center;
@@ -820,8 +812,6 @@ textarea {
   border-color: var(--gold);
 }
 
-=======
->>>>>>> e64273e33f552180d5d6206d9f697bcfb7b10c53
 #saveBackupStatus:empty {
   display: none;
 }
