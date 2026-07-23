@@ -2,6 +2,7 @@ node_modules/
 
 # Local tooling and editor state
 .agents/
+AGENTS.md
 .vscode/
 .idea/
 *.log

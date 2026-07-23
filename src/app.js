@@ -45,6 +45,7 @@ const COLLECTION_PAGE_SIZE = 60;
 const FOIL_CHANCE = 0.01;
 const FOIL_VALUE_MULTIPLIER = 2;
 const RESET_CONFIRMATION_MS = 8000;
+const PACK_SPACE_CLOSE_DELAY_MS = 750;
 
 // Runtime state shared by rendering, pack opening, and Alt1 detection.
 const state = load();
@@ -60,6 +61,7 @@ let runeMetricsXpColumnX = RUNEMETRICS_XP_COLUMN_X;
 let collectionPage = 0;
 const unrevealedPackCards = new Set();
 let packModalReturnFocus = null;
+let packSpaceCloseAvailableAt = Number.POSITIVE_INFINITY;
 let creditsHelpReturnFocus = null;
 let pendingImportedState = null;
 let resetConfirmationTimer = null;
@@ -470,6 +472,7 @@ function openPack() {
 function openPackModal() {
   const modal = qs("#packModal");
   qsa("#packModal .pack-card.face-down").forEach((card) => unrevealedPackCards.add(card));
+  packSpaceCloseAvailableAt = Number.POSITIVE_INFINITY;
   packModalReturnFocus = document.activeElement;
   modal.hidden = false;
   qs("#revealAllCardsButton").disabled = unrevealedPackCards.size === 0;
@@ -511,6 +514,7 @@ function closePackModal() {
   document.body.classList.remove("modal-open");
   qs(".app-shell").inert = false;
   unrevealedPackCards.clear();
+  packSpaceCloseAvailableAt = Number.POSITIVE_INFINITY;
   if (packModalReturnFocus && document.contains(packModalReturnFocus)) packModalReturnFocus.focus();
   packModalReturnFocus = null;
 }
@@ -641,6 +645,9 @@ function revealPackCard(cardElement, soundDelay = 0) {
   cardElement.removeAttribute("aria-label");
   cardElement.tabIndex = -1;
   qs("#revealAllCardsButton").disabled = unrevealedPackCards.size === 0;
+  if (unrevealedPackCards.size === 0) {
+    packSpaceCloseAvailableAt = performance.now() + PACK_SPACE_CLOSE_DELAY_MS;
+  }
 }
 
 function revealAllPackCards() {
@@ -1065,11 +1072,15 @@ function bind() {
         first.focus();
       }
     }
-    if (event.code !== "Space" || event.repeat || !unrevealedPackCards.size) return;
+    if (event.code !== "Space" || event.repeat || qs("#packModal").hidden) return;
     if (event.target instanceof Element
       && (event.target.matches("input, textarea, select") || event.target.isContentEditable)) return;
     event.preventDefault();
-    revealAllPackCards();
+    if (unrevealedPackCards.size) {
+      revealAllPackCards();
+    } else if (performance.now() >= packSpaceCloseAvailableAt) {
+      closePackModal();
+    }
   });
   if (DEBUG_TOOLS) {
     qs("#debugSkillTickButton").addEventListener("click", runDebugSkillTick);
