@@ -776,6 +776,46 @@ textarea {
   text-align: right;
 }
 
+.save-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.save-actions p {
+  margin: 4px 0 0;
+}
+
+.save-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-list .import-save-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #17130f;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-list .import-save-button:hover {
+  border-color: var(--gold);
+}
+
+#saveBackupStatus:empty {
+  display: none;
+}
+
 .toggle-setting input {
   width: 18px;
   min-height: 18px;

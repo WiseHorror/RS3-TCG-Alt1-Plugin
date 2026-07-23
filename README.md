@@ -12,6 +12,7 @@ A client-side RuneScape card-collection app for Alt1, inspired by the OSRS TCG R
 - Always-on RuneMetrics XP detection through Alt1.
 - RuneScape Wiki images and examine text, with resolved image URLs cached locally.
 - Progress stored in the app's local browser storage. No backend or account is required.
+- Exportable and restorable JSON save backups from Settings.
 
 ## Earning credits and packs
 
@@ -69,8 +70,13 @@ npm run cards:clues
 npm run cards:achievements
 npm run cards:components
 npm run cards:audit-images
+npm run cards:values
 npm run curate
 ```
+
+Use `npm run cards:values` after changing rarity base values or economy
+limits. It recalculates the existing catalogue locally without making Wiki
+requests.
 
 ## Important files
 

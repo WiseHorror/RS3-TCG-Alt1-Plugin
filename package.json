@@ -6,6 +6,7 @@
     "cards:achievements": "node scripts/import-clue-rewards.js \"Tasks set\" \"Achievement Reward\"",
     "cards:components": "node scripts/import-invention-components.js",
     "cards:audit-images": "node scripts/audit-card-images.js",
+    "cards:values": "node scripts/recalculate-card-values.js",
     "cards:update": "node scripts/generate-card-catalogue.js",
     "build": "webpack --mode production --env debug=true",
     "build:release": "webpack --mode production --env debug=false",

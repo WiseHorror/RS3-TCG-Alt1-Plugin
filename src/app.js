@@ -8,6 +8,7 @@ import economyConfig from "./economy-config.json";
 
 // Economy and build-time configuration.
 const CARDS = generatedCards;
+const CARD_IDS = new Set(CARDS.map((card) => card.id));
 const DEBUG_TOOLS = __DEBUG_TOOLS__;
 
 const RARITY = rarityConfig;
@@ -128,21 +129,37 @@ function defaultState() {
   };
 }
 
+function normalizeCollection(collection) {
+  if (!collection || typeof collection !== "object" || Array.isArray(collection)) return {};
+  return Object.fromEntries(Object.entries(collection).flatMap(([cardId, copies]) => {
+    const count = Math.floor(Number(copies));
+    return CARD_IDS.has(cardId) && Number.isFinite(count) && count > 0 ? [[cardId, count]] : [];
+  }));
+}
+
+function normalizeState(loaded) {
+  const defaults = defaultState();
+  const source = loaded && typeof loaded === "object" && !Array.isArray(loaded) ? loaded : {};
+  const soundVolume = Number(source.settings?.soundVolume ?? defaults.settings.soundVolume);
+  return {
+    coins: Math.max(0, Math.floor(Number(source.coins) || 0)),
+    packs: Math.max(0, Math.floor(Number(source.packs) || 0)),
+    owned: normalizeCollection(source.owned),
+    foils: normalizeCollection(source.foils),
+    log: Array.isArray(source.log) ? source.log.slice(0, 60).map((entry) => ({
+      time: String(entry?.time || ""),
+      message: String(entry?.message || "")
+    })) : [],
+    settings: {
+      showDetectionInfo: Boolean(source.settings?.showDetectionInfo),
+      soundVolume: Number.isFinite(soundVolume) ? Math.min(100, Math.max(0, soundVolume)) : defaults.settings.soundVolume
+    }
+  };
+}
+
 function load() {
   try {
-    const loaded = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    const defaults = defaultState();
-    delete loaded.creditSetup;
-    return {
-      ...defaults,
-      ...loaded,
-      owned: loaded.owned || defaults.owned,
-      foils: loaded.foils || defaults.foils,
-      settings: {
-        showDetectionInfo: Boolean((loaded.settings || {}).showDetectionInfo),
-        soundVolume: Math.min(100, Math.max(0, Number((loaded.settings || {}).soundVolume ?? defaults.settings.soundVolume)))
-      }
-    };
+    return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
   } catch {
     return defaultState();
   }
@@ -150,6 +167,57 @@ function load() {
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function exportSave() {
+  const backup = {
+    format: "runescape-tcg-save",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: state
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `runescape-tcg-save-${backup.exportedAt.slice(0, 10)}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function readFileText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+    reader.addEventListener("error", () => reject(reader.error || new Error("The backup file could not be read.")), { once: true });
+    reader.readAsText(file);
+  });
+}
+
+async function importSave(file) {
+  const status = qs("#saveBackupStatus");
+  status.textContent = "Reading backup...";
+  try {
+    const backup = JSON.parse(await readFileText(file));
+    if (backup?.format !== "runescape-tcg-save" || backup?.version !== 1 || !backup.data) {
+      throw new Error("This is not a supported RuneScape TCG save backup.");
+    }
+    if (!window.confirm("Replace your current RuneScape TCG progress with this backup?")) {
+      status.textContent = "Import cancelled.";
+      return;
+    }
+
+    Object.keys(state).forEach((key) => { delete state[key]; });
+    Object.assign(state, normalizeState(backup.data));
+    collectionPage = 0;
+    save();
+    render();
+    status.textContent = "Save restored successfully.";
+  } catch (error) {
+    status.textContent = `Import failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 function resetProgress() {
@@ -989,6 +1057,12 @@ function bind() {
     save();
   });
   qs("#resetButton").addEventListener("click", resetProgress);
+  qs("#exportSaveButton").addEventListener("click", exportSave);
+  qs("#importSaveInput").addEventListener("change", async (event) => {
+    const [file] = event.target.files || [];
+    if (file) await importSave(file);
+    event.target.value = "";
+  });
 }
 
 configureDebugTools();

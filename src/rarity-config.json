@@ -1,9 +1,9 @@
 {
-  "Common": { "chance": 45, "baseCreditValue": 25 },
-  "Uncommon": { "chance": 30, "baseCreditValue": 60 },
-  "Rare": { "chance": 14, "baseCreditValue": 150 },
-  "Epic": { "chance": 6, "baseCreditValue": 400 },
-  "Legendary": { "chance": 3, "baseCreditValue": 1200 },
-  "Mythic": { "chance": 1.5, "baseCreditValue": 2000 },
-  "Godly": { "chance": 0.5, "baseCreditValue": 4000 }
+  "Common": { "chance": 45, "baseCreditValue": 1 },
+  "Uncommon": { "chance": 30, "baseCreditValue": 20 },
+  "Rare": { "chance": 14, "baseCreditValue": 50 },
+  "Epic": { "chance": 6, "baseCreditValue": 100 },
+  "Legendary": { "chance": 3, "baseCreditValue": 300 },
+  "Mythic": { "chance": 1.5, "baseCreditValue": 700 },
+  "Godly": { "chance": 0.5, "baseCreditValue": 1500 }
 }

@@ -143,6 +143,18 @@
             </div>
             <p id="rewardStatus" class="muted">XP detection reads visible RuneMetrics counters through Alt1.</p>
           </div>
+          <div class="save-actions">
+            <div>
+              <strong>Save backup</strong>
+              <p class="muted">Download or restore a copy of your progress.</p>
+              <p id="saveBackupStatus" class="muted" role="status"></p>
+            </div>
+            <div class="save-action-buttons">
+              <button id="exportSaveButton" type="button">Export save</button>
+              <label class="import-save-button" for="importSaveInput">Import save</label>
+              <input id="importSaveInput" type="file" accept="application/json,.json" hidden>
+            </div>
+          </div>
           <div class="button-row">
             <button id="resetButton" class="danger">Reset</button>
           </div>
@@ -185,6 +197,6 @@
       </div>
     </section>
 
-    <script src="./dist/app.bundle.js?v=20260723-0050"></script>
+    <script src="./dist/app.bundle.js?v=20260723-0080"></script>
   </body>
 </html>
