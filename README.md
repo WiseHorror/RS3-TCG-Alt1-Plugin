@@ -12,6 +12,7 @@ A client-side RuneScape card-collection app for Alt1, inspired by the OSRS TCG R
 - Always-on RuneMetrics XP detection through Alt1.
 - RuneScape Wiki images and examine text, with resolved image URLs cached locally.
 - Progress stored in the app's local browser storage. No backend or account is required.
+- Exportable and restorable JSON save backups from Settings.
 
 ## Earning credits and packs
 
