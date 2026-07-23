@@ -65,7 +65,9 @@ The app requests Alt1's `pixel` permission to locate and read the visible RuneMe
 
 Run `npm run build:release`, commit the generated `dist/app.bundle.js`, and deploy the repository to any static HTTPS host such as GitHub Pages. Share either the hosted page or its `alt1://addapp/` manifest link.
 
-Change the cache version in `appconfig.json` and the bundle query string in `index.html` for each release so existing Alt1 installations load the update.
+Change the bundle query string in `index.html` for each release so existing
+Alt1 installations load the update. Keep `appconfig.json`'s `appUrl` stable;
+Alt1 stores that URL when the app is installed.
 
 ## Catalogue tools
 
