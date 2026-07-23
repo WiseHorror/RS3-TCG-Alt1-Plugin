@@ -204,11 +204,6 @@ async function importSave(file) {
     if (backup?.format !== "runescape-tcg-save" || backup?.version !== 1 || !backup.data) {
       throw new Error("This is not a supported RuneScape TCG save backup.");
     }
-    if (!window.confirm("Replace your current RuneScape TCG progress with this backup?")) {
-      status.textContent = "Import cancelled.";
-      return;
-    }
-
     Object.keys(state).forEach((key) => { delete state[key]; });
     Object.assign(state, normalizeState(backup.data));
     collectionPage = 0;
