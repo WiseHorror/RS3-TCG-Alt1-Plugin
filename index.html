@@ -197,6 +197,20 @@
       </div>
     </section>
 
-    <script src="./dist/app.bundle.js?v=20260723-0090"></script>
+    <section id="importSaveModal" class="pack-modal" role="dialog" aria-modal="true" aria-labelledby="importSaveTitle" hidden>
+      <div class="pack-modal-panel credits-help-panel">
+        <header class="pack-modal-header">
+          <h2 id="importSaveTitle">Restore this save?</h2>
+        </header>
+        <p>This will replace your current credits, packs, collection, log, and settings.</p>
+        <p id="importSaveSummary" class="import-save-summary"></p>
+        <div class="import-confirm-actions">
+          <button id="cancelImportSave" type="button">Cancel</button>
+          <button id="confirmImportSave" class="danger" type="button">Restore save</button>
+        </div>
+      </div>
+    </section>
+
+    <script src="./dist/app.bundle.js?v=20260723-0100"></script>
   </body>
 </html>

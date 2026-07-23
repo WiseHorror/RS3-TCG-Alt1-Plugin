@@ -816,6 +816,21 @@ textarea {
   display: none;
 }
 
+.import-save-summary {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #211b14;
+  color: var(--gold);
+}
+
+.import-confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
 .toggle-setting input {
   width: 18px;
   min-height: 18px;

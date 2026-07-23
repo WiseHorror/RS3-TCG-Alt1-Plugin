@@ -61,6 +61,7 @@ let collectionPage = 0;
 const unrevealedPackCards = new Set();
 let packModalReturnFocus = null;
 let creditsHelpReturnFocus = null;
+let pendingImportedState = null;
 let resetConfirmationTimer = null;
 let audioContext = null;
 
@@ -204,15 +205,45 @@ async function importSave(file) {
     if (backup?.format !== "runescape-tcg-save" || backup?.version !== 1 || !backup.data) {
       throw new Error("This is not a supported RuneScape TCG save backup.");
     }
-    Object.keys(state).forEach((key) => { delete state[key]; });
-    Object.assign(state, normalizeState(backup.data));
-    collectionPage = 0;
-    save();
-    render();
-    status.textContent = "Save restored successfully.";
+    pendingImportedState = normalizeState(backup.data);
+    const cardCount = Object.keys(pendingImportedState.owned).length
+      + Object.keys(pendingImportedState.foils)
+        .filter((cardId) => !pendingImportedState.owned[cardId]).length;
+    const exportedAt = new Date(backup.exportedAt);
+    qs("#importSaveSummary").textContent = [
+      `${pendingImportedState.coins.toLocaleString()} credits`,
+      `${pendingImportedState.packs.toLocaleString()} packs`,
+      `${cardCount.toLocaleString()} unique cards`,
+      ...(Number.isNaN(exportedAt.getTime()) ? [] : [`exported ${exportedAt.toLocaleString()}`])
+    ].join(" | ");
+    status.textContent = "Backup loaded. Confirm the restore.";
+    qs("#importSaveModal").hidden = false;
+    document.body.classList.add("modal-open");
+    qs("#confirmImportSave").focus();
   } catch (error) {
+    pendingImportedState = null;
     status.textContent = `Import failed: ${error instanceof Error ? error.message : String(error)}`;
   }
+}
+
+function closeImportSaveModal() {
+  qs("#importSaveModal").hidden = true;
+  document.body.classList.remove("modal-open");
+  pendingImportedState = null;
+}
+
+function confirmImportSave() {
+  if (!pendingImportedState) return;
+  const restored = pendingImportedState;
+  pendingImportedState = null;
+  Object.keys(state).forEach((key) => { delete state[key]; });
+  Object.assign(state, restored);
+  collectionPage = 0;
+  save();
+  render();
+  qs("#saveBackupStatus").textContent = "Save restored successfully.";
+  qs("#importSaveModal").hidden = true;
+  document.body.classList.remove("modal-open");
 }
 
 function resetProgress() {
@@ -981,8 +1012,18 @@ function bind() {
   qs("#creditsHelpModal").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeCreditsHelp();
   });
+  qs("#cancelImportSave").addEventListener("click", closeImportSaveModal);
+  qs("#confirmImportSave").addEventListener("click", confirmImportSave);
+  qs("#importSaveModal").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeImportSaveModal();
+  });
   qs("#alt1StatusButton").addEventListener("click", checkAlt1Status);
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !qs("#importSaveModal").hidden) {
+      event.preventDefault();
+      closeImportSaveModal();
+      return;
+    }
     if (event.key === "Escape" && !qs("#creditsHelpModal").hidden) {
       event.preventDefault();
       closeCreditsHelp();
