@@ -5,8 +5,11 @@ A client-side RuneScape card-collection app for Alt1, inspired by the OSRS TCG R
 ## Disclaimer
 
 This plugin was mostly made with AI with some manual fixes and therefore expect the code to be all over the place.
+
 I didn't want to bother doing it from scratch since Jagex is working on an official API and this might be obsolete soon. (I'm also not a web dev, so my javascript knowledge is terrible)
+
 I decided to make a quick plugin after watching TCG locked series on OSRS and wanted to try it on RS3, especially with leagues 2 coming soon I think it would be fun to try it there.
+
 With that said, if you want to use the plugin, make sure to back up your save file often (under Settings in the plugin).
 
 ## Features
