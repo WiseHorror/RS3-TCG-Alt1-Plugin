@@ -161,7 +161,6 @@ small,
 
 .tabs,
 .button-row,
-.toolbar,
 .monitor-row {
   display: flex;
   gap: 8px;
@@ -340,34 +339,12 @@ small,
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.7);
 }
 
-.setup-modal-panel {
-  width: min(100%, 520px);
-}
-
 .credits-help-panel {
   width: min(100%, 480px);
 }
 
 .credits-help-content p:last-child {
   margin-bottom: 0;
-}
-
-.setup-modal-panel h2 {
-  margin-top: 4px;
-}
-
-.setup-name-field {
-  display: grid;
-  gap: 6px;
-  margin-top: 16px;
-  color: var(--muted);
-}
-
-.setup-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 16px;
 }
 
 .pack-modal-header {
@@ -747,10 +724,6 @@ small,
   animation: pop 220ms ease-out both;
 }
 
-.toolbar input {
-  flex: 1;
-}
-
 input,
 select,
 textarea {
@@ -781,6 +754,28 @@ textarea {
   color: var(--text);
 }
 
+.settings-list .volume-setting {
+  gap: 8px;
+}
+
+.volume-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume-control input {
+  min-height: 24px;
+  padding: 0;
+  accent-color: var(--gold);
+}
+
+.volume-control output {
+  color: var(--text);
+  text-align: right;
+}
+
 .toggle-setting input {
   width: 18px;
   min-height: 18px;
@@ -804,8 +799,26 @@ textarea {
   color: #fff;
 }
 
-.debug-controls[hidden] {
+.debug-section[hidden] {
   display: none;
+}
+
+.debug-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.debug-controls {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.debug-controls label {
+  display: block;
+}
+
+.debug-controls input {
+  width: 110px;
 }
 
 .event-log {

@@ -26,9 +26,7 @@ function foilCardCreditValue(card) {
 }
 
 const REWARD = {
-  skill: { coins: 80, chance: BASE_SKILL_PACK_CHANCE, label: "Skill tick" },
-  boss: { coins: 260, chance: 0, label: "Boss kill" },
-  clue: { coins: 420, chance: 0.1, label: "Clue casket" }
+  skill: { coins: 0, chance: BASE_SKILL_PACK_CHANCE, label: "Skill tick" }
 };
 
 const STORAGE_KEY = "rs3-tcg-save-v1";
@@ -63,9 +61,56 @@ const unrevealedPackCards = new Set();
 let packModalReturnFocus = null;
 let creditsHelpReturnFocus = null;
 let resetConfirmationTimer = null;
+let audioContext = null;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
+
+// Pack sounds are synthesized locally to keep the app self-contained.
+function getAudioContext() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return null;
+  audioContext ||= new AudioContext();
+  if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+  return audioContext;
+}
+
+function playTone(frequency, duration, volume, delay = 0, type = "sine") {
+  const adjustedVolume = volume * state.settings.soundVolume / 100;
+  if (adjustedVolume <= 0) return;
+  const context = getAudioContext();
+  if (!context) return;
+  const start = context.currentTime + delay;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(adjustedVolume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function playPackOpenSound() {
+  playTone(130, 0.18, 0.055, 0, "triangle");
+  playTone(196, 0.25, 0.045, 0.08, "triangle");
+}
+
+function playCardDealSound(delay) {
+  playTone(150, 0.07, 0.025, delay, "triangle");
+}
+
+function playCardRevealSound(cardElement, delay = 0) {
+  const rarityIndex = Math.max(0, Object.keys(RARITY).indexOf(cardElement.dataset.rarity));
+  const baseFrequency = 280 + rarityIndex * 55;
+  playTone(baseFrequency, 0.16, 0.045, delay, "sine");
+  playTone(baseFrequency * 1.5, 0.22, 0.035, delay + 0.035, "triangle");
+  if (cardElement.dataset.foil === "true") {
+    playTone(baseFrequency * 2, 0.38, 0.03, delay + 0.08, "sine");
+  }
+}
 
 // Save data -------------------------------------------------------------------
 
@@ -77,7 +122,8 @@ function defaultState() {
     foils: {},
     log: [],
     settings: {
-      showDetectionInfo: false
+      showDetectionInfo: false,
+      soundVolume: 70
     }
   };
 }
@@ -93,7 +139,8 @@ function load() {
       owned: loaded.owned || defaults.owned,
       foils: loaded.foils || defaults.foils,
       settings: {
-        showDetectionInfo: Boolean((loaded.settings || {}).showDetectionInfo)
+        showDetectionInfo: Boolean((loaded.settings || {}).showDetectionInfo),
+        soundVolume: Math.min(100, Math.max(0, Number((loaded.settings || {}).soundVolume ?? defaults.settings.soundVolume)))
       }
     };
   } catch {
@@ -278,6 +325,7 @@ function openPack() {
   }
 
   state.packs -= 1;
+  playPackOpenSound();
   state.owned ||= {};
   state.foils ||= {};
   const opened = Array.from({ length: CARDS_PER_PACK }, weightedCard);
@@ -340,6 +388,7 @@ function startPackDealAnimation(modal) {
       card.style.setProperty("--deal-y", `${sourceY - cardRect.top - cardRect.height / 2}px`);
       card.style.setProperty("--deal-delay", `${Math.min(index, 14) * 45}ms`);
       card.classList.add("dealing");
+      playCardDealSound(0.16 + index * 0.045);
       card.addEventListener("animationend", () => card.classList.remove("dealing"), { once: true });
     });
   });
@@ -361,6 +410,8 @@ function cardNode(card, count, packReveal = false, options = {}) {
   const el = document.createElement("article");
   el.className = `card ${card.rarity.toLowerCase()}${count ? "" : " locked"}${foil ? " foil" : ""}${packReveal ? " pack-card face-down" : ""}`;
   el.dataset.cardId = card.id;
+  el.dataset.rarity = card.rarity;
+  el.dataset.foil = String(foil);
   const imageUrl = card.imageUrl || imageCache[card.id] || "";
   const sellValue = cardCreditValue(card);
   const normalCopies = Number((state.owned || {})[card.id] || 0);
@@ -470,8 +521,9 @@ function sellAllDuplicates() {
   render();
 }
 
-function revealPackCard(cardElement) {
+function revealPackCard(cardElement, soundDelay = 0) {
   if (!unrevealedPackCards.delete(cardElement)) return;
+  playCardRevealSound(cardElement, soundDelay);
   cardElement.classList.remove("face-down");
   cardElement.classList.add("revealed");
   cardElement.removeAttribute("role");
@@ -481,7 +533,7 @@ function revealPackCard(cardElement) {
 }
 
 function revealAllPackCards() {
-  [...unrevealedPackCards].forEach(revealPackCard);
+  [...unrevealedPackCards].forEach((card, index) => revealPackCard(card, index * 0.06));
 }
 
 function addReward(kind, statusText = "", coinOverride = null, chanceOverride = null) {
@@ -520,6 +572,24 @@ function getSkillPackChance(xpGained) {
   const progress = (xp - BASE_SKILL_PACK_XP) / (MAX_SKILL_PACK_XP - BASE_SKILL_PACK_XP);
   return BASE_SKILL_PACK_CHANCE
     + progress * (MAX_SKILL_PACK_CHANCE - BASE_SKILL_PACK_CHANCE);
+}
+
+function runDebugSkillTick() {
+  const input = qs("#debugXpAmount");
+  const xp = Math.max(0, Math.floor(Number(input.value) || 0));
+  if (xp < 1) {
+    qs("#rewardStatus").textContent = "Enter an XP amount greater than 0.";
+    input.focus();
+    return;
+  }
+
+  const credits = Math.ceil(xp / XP_PER_CREDIT);
+  addReward(
+    "skill",
+    `Debug XP drop: +${xp.toLocaleString()} XP and +${credits.toLocaleString()} credits.`,
+    credits,
+    getSkillPackChance(xp)
+  );
 }
 
 // Alt1 RuneMetrics XP detection ----------------------------------------------
@@ -793,6 +863,8 @@ function render() {
   qs("#ownedCount").textContent = `${ownedUnique}/${CARDS.length}`;
   qs("#activityPanel").hidden = !state.settings.showDetectionInfo;
   qs("#showDetectionInfoToggle").checked = Boolean(state.settings.showDetectionInfo);
+  qs("#soundVolume").value = String(state.settings.soundVolume);
+  qs("#soundVolumeValue").textContent = `${state.settings.soundVolume}%`;
   const duplicateSummary = duplicateSale();
   qs("#sellDuplicatesButton").disabled = duplicateSummary.copies === 0;
   qs("#sellDuplicatesButton").textContent = duplicateSummary.copies
@@ -878,7 +950,7 @@ function bind() {
     revealAllPackCards();
   });
   if (DEBUG_TOOLS) {
-    qsa("[data-reward]").forEach((button) => button.addEventListener("click", () => addReward(button.dataset.reward)));
+    qs("#debugSkillTickButton").addEventListener("click", runDebugSkillTick);
   }
   qsa(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -910,6 +982,11 @@ function bind() {
     state.settings.showDetectionInfo = event.target.checked;
     save();
     render();
+  });
+  qs("#soundVolume").addEventListener("input", (event) => {
+    state.settings.soundVolume = Number(event.target.value);
+    qs("#soundVolumeValue").textContent = `${state.settings.soundVolume}%`;
+    save();
   });
   qs("#resetButton").addEventListener("click", resetProgress);
 }

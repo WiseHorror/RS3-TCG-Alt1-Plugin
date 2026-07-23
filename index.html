@@ -116,6 +116,13 @@
 
       <section id="settingsView" class="view">
         <div class="settings-list">
+          <label class="volume-setting" for="soundVolume">
+            <span>Card sound volume</span>
+            <span class="volume-control">
+              <input id="soundVolume" type="range" min="0" max="100" step="5" value="70">
+              <output id="soundVolumeValue" for="soundVolume">70%</output>
+            </span>
+          </label>
           <label class="toggle-setting" for="showDetectionInfoToggle">
             <span>Show Alt1 detection info</span>
             <input id="showDetectionInfoToggle" type="checkbox">
@@ -126,10 +133,13 @@
               <button id="alt1StatusButton">Check Alt1</button>
               <span id="xpDetectionStatus" class="status-pill">Idle</span>
             </div>
-            <div class="button-row debug-controls" data-debug-feature hidden>
-              <button data-reward="skill">Skill Tick</button>
-              <button data-reward="boss">Boss Kill</button>
-              <button data-reward="clue">Clue Casket</button>
+            <div class="debug-section" data-debug-feature hidden>
+              <strong class="debug-label">Debug</strong>
+              <div class="button-row debug-controls">
+                <label for="debugXpAmount">XP amount</label>
+                <input id="debugXpAmount" type="number" min="1" step="1" value="100">
+                <button id="debugSkillTickButton" type="button">Skill Tick</button>
+              </div>
             </div>
             <p id="rewardStatus" class="muted">XP detection reads visible RuneMetrics counters through Alt1.</p>
           </div>
@@ -175,6 +185,6 @@
       </div>
     </section>
 
-    <script src="./dist/app.bundle.js?v=20260723-0010"></script>
+    <script src="./dist/app.bundle.js?v=20260723-0050"></script>
   </body>
 </html>
