@@ -776,6 +776,34 @@ textarea {
   text-align: right;
 }
 
+.save-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.save-actions p {
+  margin: 4px 0 0;
+}
+
+.save-actions button {
+  flex: 0 0 auto;
+}
+
+.save-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#saveBackupStatus:empty {
+  display: none;
+}
+
 .toggle-setting input {
   width: 18px;
   min-height: 18px;
